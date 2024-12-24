@@ -1,29 +1,31 @@
-import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import prismadb from '@/lib/prismadb';
+import { useSession } from 'next-auth/react';
+import { prisma } from '@/prisma/prisma-client';
+
 import { Navbar } from '@/components/navbar';
 
 interface DashboardType {
   children: React.ReactNode;
-  params: Promise<{ storeId: string }>;
 }
 
-export default async function Dashboard({ children, params }: DashboardType) {
-  const { userId } = await auth();
-  const { storeId } = await params;
+export default async function Dashboard({ children }: DashboardType) {
+  const { data: session } = useSession();
 
-  if (!userId) {
-    redirect('/sign-in');
+  if (!session) {
+    redirect('/');
   }
 
-  const store = await prismadb?.store.findFirst({
+  const user = await prisma.user.findFirst({
     where: {
-      id: storeId,
-      userId,
+      role: 'ADMIN',
     },
   });
 
-  if (!store) {
+  if (!user) {
+    return null;
+  }
+
+  if (user.role !== session.user.role) {
     redirect('/');
   }
 
