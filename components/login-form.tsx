@@ -2,7 +2,6 @@ import React from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
-import { redirect } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 
 import { Button } from './ui/button';
@@ -10,7 +9,11 @@ import { FormInput } from './form-input';
 import { Title } from './title';
 import { formLoginSchema, TFormLoginValues } from './schemas';
 
-export const LoginForm: React.FC = () => {
+interface LoginFormProps {
+  onSuccess?: () => void; // Добавляем пропс для обработчика успеха
+}
+
+export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const form = useForm<TFormLoginValues>({
     resolver: zodResolver(formLoginSchema),
     defaultValues: {
@@ -27,15 +30,21 @@ export const LoginForm: React.FC = () => {
       });
 
       if (!resp?.ok) {
-        throw Error();
+        toast.error('Вы не админ', {
+          icon: '❌',
+        });
+        onSuccess?.();
+        return;
       }
 
       toast.success('Вы успешно вошли в аккаунт', {
         icon: '✅',
       });
+
+      onSuccess?.();
     } catch (error) {
       console.error('Error [LOGIN]', error);
-      toast.error('Не удалось войти в аккаунт', {
+      toast.error('Не удалось войти в аккаунт', {
         icon: '❌',
       });
     }
@@ -70,7 +79,7 @@ export const LoginForm: React.FC = () => {
           className='h-12 text-base'
           type='submit'
         >
-          Войти
+          Войти
         </Button>
       </form>
     </FormProvider>

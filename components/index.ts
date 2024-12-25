@@ -4,7 +4,7 @@ export { MainNav } from './main-nav';
 export { ProfileButton } from './profile-button';
 export { ModalProvider } from './modal-provider';
 export { Modal } from './modal';
-export { AuthModal } from './auth-modal';
+export { AuthModal } from './auth-guard';
 export { LoginForm } from './login-form';
 export { ClearButton } from './clear-button';
 export { ErrorText } from './error-text';
