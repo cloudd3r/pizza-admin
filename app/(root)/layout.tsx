@@ -1,15 +1,16 @@
 import { redirect } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/prisma/prisma-client';
 
 import { Navbar } from '@/components/navbar';
+import { authOptions } from '@/constants/auth-options';
 
 interface DashboardType {
   children: React.ReactNode;
 }
 
 export default async function Dashboard({ children }: DashboardType) {
-  const { data: session } = useSession();
+  const session = await getServerSession(authOptions);
 
   if (!session) {
     redirect('/');
@@ -21,11 +22,7 @@ export default async function Dashboard({ children }: DashboardType) {
     },
   });
 
-  if (!user) {
-    return null;
-  }
-
-  if (user.role !== session.user.role) {
+  if (!user || user.role !== session.user.role) {
     redirect('/');
   }
 
