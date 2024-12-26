@@ -1,17 +1,21 @@
 import { prisma } from '@/prisma/prisma-client';
 import { CategoryForm } from './components/category-form';
 
-const CategoryPage = async ({
+const EditCategoryPage = async ({
   params,
 }: {
-  params: Promise<{ categoryId: string }>;
+  params: { categoryId: string };
 }) => {
-  const { categoryId } = await params;
   const category = await prisma.category.findUnique({
     where: {
-      id: Number(categoryId),
+      id: Number(params.categoryId),
     },
   });
+
+  if (!category) {
+    // Обработка случая, если категория не найдена
+    return <div>Category not found</div>;
+  }
 
   return (
     <div className='flex-col'>
@@ -22,4 +26,4 @@ const CategoryPage = async ({
   );
 };
 
-export default CategoryPage;
+export default EditCategoryPage;

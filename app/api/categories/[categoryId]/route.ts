@@ -3,19 +3,23 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ categoryId: string }> }
+  { params }: { params: { categoryId: string } }
 ) {
   try {
-    const { categoryId } = await params;
+    const { categoryId } = params; // Убираем await
     if (!categoryId) {
       return new NextResponse('Category id is required', { status: 400 });
     }
 
     const category = await prisma.category.findUnique({
       where: {
-        id: Number(categoryId),
+        id: Number(categoryId), // Преобразуем в число
       },
     });
+
+    if (!category) {
+      return new NextResponse('Category not found', { status: 404 });
+    }
 
     return NextResponse.json(category);
   } catch (err) {
@@ -26,13 +30,12 @@ export async function GET(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ categoryId: string }> }
+  { params }: { params: { categoryId: string } }
 ) {
   try {
     const body = await req.json();
-
     const { name } = body;
-    const { categoryId } = await params;
+    const { categoryId } = params; // Убираем await
 
     if (!name) {
       return new NextResponse('Name is required', { status: 400 });
@@ -42,9 +45,9 @@ export async function PATCH(
       return new NextResponse('Category id is required', { status: 400 });
     }
 
-    const category = await prisma.category.updateMany({
+    const category = await prisma.category.update({
       where: {
-        id: Number(categoryId),
+        id: Number(categoryId), // Преобразуем в число
       },
       data: {
         name,
@@ -62,18 +65,18 @@ export async function PATCH(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ categoryId: string }> }
+  { params }: { params: { categoryId: string } }
 ) {
   try {
-    const { categoryId } = await params;
+    const { categoryId } = params; // Убираем await
 
     if (!categoryId) {
       return new NextResponse('Category id is required', { status: 400 });
     }
 
-    const category = await prisma.category.deleteMany({
+    const category = await prisma.category.delete({
       where: {
-        id: Number(categoryId),
+        id: Number(categoryId), // Преобразуем в число
       },
     });
 
