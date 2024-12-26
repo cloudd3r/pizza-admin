@@ -26,22 +26,18 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     try {
       const resp = await signIn('credentials', {
         ...data,
-        redirect: false,
+        redirect: false, // Отключаем редирект для обработки вручную
       });
 
-      if (!resp?.ok) {
-        toast.error('Вы не админ', {
+      if (resp?.ok) {
+        // Вызываем onSuccess только при успешной авторизации
+        onSuccess?.();
+      } else {
+        // Показываем ошибку, если вход не удался
+        toast.error('Неверный логин или пароль', {
           icon: '❌',
         });
-        onSuccess?.();
-        return;
       }
-
-      toast.success('Вы успешно вошли в аккаунт', {
-        icon: '✅',
-      });
-
-      onSuccess?.();
     } catch (error) {
       console.error('Error [LOGIN]', error);
       toast.error('Не удалось войти в аккаунт', {

@@ -1,15 +1,31 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { getSession, useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { LoginForm } from './login-form';
+import toast from 'react-hot-toast';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
-  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleLoginFeedback = async (
+    setIsModalOpen: (state: boolean) => void
+  ) => {
+    const updatedSession = await getSession();
+
+    if (updatedSession?.user.role === 'ADMIN') {
+      setIsModalOpen(false);
+      toast.success('Вы успешно вошли в аккаунт', {
+        icon: '✅',
+      });
+    } else {
+      toast.error('Вы не админ', {
+        icon: '❌',
+      });
+    }
+  };
 
   useEffect(() => {
     if (status === 'loading') return; // Ждем проверки сессии
@@ -27,18 +43,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!session || session.user.role !== 'ADMIN') {
     return (
       <Dialog open={isModalOpen}>
-        <DialogTitle>Login</DialogTitle>
+        <DialogTitle />
         <DialogContent>
           <LoginForm
             onSuccess={() => {
-              // Ждем обновления сессии
-              setTimeout(() => {
-                if (session?.user.role === 'ADMIN') {
-                  setIsModalOpen(false);
-                } else {
-                  router.push('/'); // Redirect to the main site
-                }
-              }, 100); // Небольшая задержка для обновления сессии
+              handleLoginFeedback(setIsModalOpen);
             }}
           />
         </DialogContent>

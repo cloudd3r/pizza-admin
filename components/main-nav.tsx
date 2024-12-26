@@ -7,44 +7,43 @@ import React from 'react';
 
 export const MainNav: React.FC = ({
   className,
-  ...props
 }: React.HTMLAttributes<HTMLDivElement>) => {
   const pathname = usePathname();
 
   const routes = [
     {
       href: `/`,
-      label: 'Overview',
+      label: 'Главня',
       active: pathname === `/`,
     },
     {
       href: `/categories`,
-      label: 'Categories',
+      label: 'Категории',
       active: pathname === `/categories`,
     },
     {
       href: `/pizzas`,
-      label: 'Pizzas',
+      label: 'Пиццы',
       active: pathname === `/pizzas`,
     },
     {
       href: `/products`,
-      label: 'Products',
+      label: 'Продукты',
       active: pathname === `/products`,
     },
     {
       href: `/ingridients`,
-      label: 'Ingridients',
+      label: 'Ингридиенты',
       active: pathname === `/ingridients`,
     },
     {
       href: `/orders`,
-      label: 'Orders',
+      label: 'Заказы',
       active: pathname === `/orders`,
     },
     {
       href: `/settings`,
-      label: 'Settings',
+      label: 'Настройки',
       active: pathname === `/settings`,
     },
   ];
