@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
     const { name } = body;
 
     if (!name) {
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const categories = await prisma.category.findMany();
 

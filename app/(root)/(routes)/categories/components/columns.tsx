@@ -1,7 +1,6 @@
 'use client';
 import { ColumnDef } from '@tanstack/react-table';
 import { CellAction } from './cell-action';
-import { noUnrecognized } from 'zod';
 
 export type CategoryColumn = {
   id: number;
