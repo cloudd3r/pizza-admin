@@ -2,6 +2,7 @@
 
 import { getSession, useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
+import { Loader } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { LoginForm } from './login-form';
 import toast from 'react-hot-toast';
@@ -17,18 +18,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     if (updatedSession?.user.role === 'ADMIN') {
       setIsModalOpen(false);
-      toast.success('Вы успешно вошли в аккаунт', {
-        icon: '✅',
-      });
+      toast.success('Вы успешно вошли в аккаунт');
     } else {
-      toast.error('Вы не админ', {
-        icon: '❌',
-      });
+      toast.error('Вы не админ');
     }
   };
 
   useEffect(() => {
-    if (status === 'loading') return; // Ждем проверки сессии
+    if (status === 'loading') return;
     if (!session || session.user.role !== 'ADMIN') {
       setIsModalOpen(true);
     } else {
@@ -37,7 +34,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [session, status]);
 
   if (status === 'loading') {
-    return <p>Loading...</p>; // Замените на скелетон, если нужно
+    return (
+      <div className='flex items-center justify-center min-h-screen'>
+        <Loader className='w-8 h-8 animate-spin text-muted-foreground' />
+      </div>
+    );
   }
 
   if (!session || session.user.role !== 'ADMIN') {
