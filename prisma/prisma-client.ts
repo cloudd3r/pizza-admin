@@ -1,37 +1,55 @@
+import { neonConfig } from '@neondatabase/serverless';
+import { PrismaNeon } from '@prisma/adapter-neon';
 import { PrismaClient } from '@prisma/client';
+import ws from 'ws';
 
 /**
- * Build the runtime database URL.
+ * PrismaClient via Neon's serverless driver (WebSocket transport).
  *
- * Neon exposes two URLs:
- *   - POSTGRES_URL              — pooled (PgBouncer in transaction mode).
- *                                 Closes idle connections aggressively and
- *                                 doesn't tolerate prepared statements,
- *                                 which is what causes Prisma's
- *                                 "Server has closed the connection" errors.
- *   - POSTGRES_URL_NON_POOLING  — direct connection to the compute endpoint.
+ * Why not the default Prisma TCP client?
+ *   - Neon's pooled URL goes through PgBouncer in transaction mode, which
+ *     drops idle connections and breaks Prisma's prepared statements
+ *     (manifests as `Server has closed the connection`).
+ *   - The default Prisma client maintains its own client-side TCP pool
+ *     (default size = num_cpus * 2 + 1). In Next.js dev mode, HMR
+ *     repeatedly re-evaluates modules and tends to leak PrismaClient
+ *     instances; their pools fill up after a few hot reloads
+ *     (manifests as `Timed out fetching a new connection from the
+ *     connection pool`).
  *
- * For an admin panel with low concurrent load, the direct URL is the right
- * choice: no pooler-induced disconnects, and we won't hit Neon's connection
- * limits. If only the pooled URL is configured, we append the
- * `pgbouncer=true&connect_timeout=10` flags so Prisma disables prepared
- * statements, which keeps things working with PgBouncer.
+ * Using `@prisma/adapter-neon` with `@neondatabase/serverless` swaps the
+ * TCP transport for Neon's WebSocket driver. There's no per-instance TCP
+ * pool to exhaust, and the adapter handles reconnects gracefully — works
+ * the same in dev, in production Node, and in serverless/edge runtimes.
+ *
+ * The `webSocketConstructor` is required only in Node.js (in browsers /
+ * edge, the global `WebSocket` is used). `ws` is a small peer dependency.
  */
-const buildDatabaseUrl = (): string | undefined => {
-  const direct = process.env.POSTGRES_URL_NON_POOLING;
-  if (direct) return direct;
 
-  const pooled = process.env.POSTGRES_URL;
-  if (!pooled) return undefined;
-  if (pooled.includes('pgbouncer=')) return pooled;
+if (typeof globalThis.WebSocket === 'undefined') {
+  // Polyfill for Node.js so @neondatabase/serverless can open WebSockets.
+  // No-op in edge / browser.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  neonConfig.webSocketConstructor = ws as any;
+}
 
-  const sep = pooled.includes('?') ? '&' : '?';
-  return `${pooled}${sep}pgbouncer=true&connect_timeout=10`;
+const buildConnectionString = (): string => {
+  // Prefer the direct (non-pooled) URL — bypasses PgBouncer entirely.
+  // The Neon serverless driver still uses HTTPS/WSS internally, so we don't
+  // need the pooler for connection scaling here.
+  const url = process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
+  if (!url) {
+    throw new Error(
+      'Missing POSTGRES_URL_NON_POOLING (or POSTGRES_URL) env variable',
+    );
+  }
+  return url;
 };
 
 const prismaClientSingleton = () => {
+  const adapter = new PrismaNeon({ connectionString: buildConnectionString() });
   return new PrismaClient({
-    datasourceUrl: buildDatabaseUrl(),
+    adapter,
     log:
       process.env.NODE_ENV === 'development'
         ? ['error', 'warn']
