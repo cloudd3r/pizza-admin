@@ -1,19 +1,18 @@
 import { prisma } from '@/prisma/prisma-client';
 import { NextResponse } from 'next/server';
 
-export async function GET(
-  req: Request,
-  { params }: { params: { categoryId: string } }
-) {
+type Params = { params: Promise<{ categoryId: string }> };
+
+export async function GET(_req: Request, { params }: Params) {
   try {
-    const { categoryId } = params; // Убираем await
+    const { categoryId } = await params;
     if (!categoryId) {
       return new NextResponse('Category id is required', { status: 400 });
     }
 
     const category = await prisma.category.findUnique({
       where: {
-        id: Number(categoryId), // Преобразуем в число
+        id: Number(categoryId),
       },
     });
 
@@ -28,14 +27,11 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { categoryId: string } }
-) {
+export async function PATCH(req: Request, { params }: Params) {
   try {
     const body = await req.json();
     const { name } = body;
-    const { categoryId } = params; // Убираем await
+    const { categoryId } = await params;
 
     if (!name) {
       return new NextResponse('Name is required', { status: 400 });
@@ -47,7 +43,7 @@ export async function PATCH(
 
     const category = await prisma.category.update({
       where: {
-        id: Number(categoryId), // Преобразуем в число
+        id: Number(categoryId),
       },
       data: {
         name,
@@ -61,14 +57,9 @@ export async function PATCH(
   }
 }
 
-//// Delete Method
-
-export async function DELETE(
-  req: Request,
-  { params }: { params: { categoryId: string } }
-) {
+export async function DELETE(_req: Request, { params }: Params) {
   try {
-    const { categoryId } = params; // Убираем await
+    const { categoryId } = await params;
 
     if (!categoryId) {
       return new NextResponse('Category id is required', { status: 400 });
@@ -76,7 +67,7 @@ export async function DELETE(
 
     const category = await prisma.category.delete({
       where: {
-        id: Number(categoryId), // Преобразуем в число
+        id: Number(categoryId),
       },
     });
 

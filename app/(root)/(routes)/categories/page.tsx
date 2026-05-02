@@ -4,6 +4,8 @@ import { format } from 'date-fns';
 import { CategoryColumn } from './components/columns';
 import { CategoryClient } from './components/client';
 
+export const dynamic = 'force-dynamic';
+
 const CategoriesPage = async () => {
   const categories = await prisma.category.findMany({
     orderBy: {

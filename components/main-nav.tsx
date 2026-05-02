@@ -5,15 +5,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
 
-export const MainNav: React.FC = ({
+export const MainNav: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   className,
-}: React.HTMLAttributes<HTMLDivElement>) => {
+}) => {
   const pathname = usePathname();
 
   const routes = [
     {
       href: `/`,
-      label: 'Главня',
+      label: 'Главная',
       active: pathname === `/`,
     },
     {
@@ -32,9 +32,9 @@ export const MainNav: React.FC = ({
       active: pathname === `/products`,
     },
     {
-      href: `/ingridients`,
-      label: 'Ингридиенты',
-      active: pathname === `/ingridients`,
+      href: `/ingredients`,
+      label: 'Ингредиенты',
+      active: pathname === `/ingredients`,
     },
     {
       href: `/orders`,

@@ -1,20 +1,27 @@
+import { Category } from '@prisma/client';
+
 import { prisma } from '@/prisma/prisma-client';
 import { CategoryForm } from './components/category-form';
 
 const EditCategoryPage = async ({
   params,
 }: {
-  params: { categoryId: string };
+  params: Promise<{ categoryId: string }>;
 }) => {
-  const category = await prisma.category.findUnique({
-    where: {
-      id: Number(params.categoryId),
-    },
-  });
+  const { categoryId } = await params;
 
-  if (!category) {
-    // Обработка случая, если категория не найдена
-    return <div>Category not found</div>;
+  let category: Category | null = null;
+
+  if (categoryId !== 'new') {
+    category = await prisma.category.findUnique({
+      where: {
+        id: Number(categoryId),
+      },
+    });
+
+    if (!category) {
+      return <div>Category not found</div>;
+    }
   }
 
   return (
