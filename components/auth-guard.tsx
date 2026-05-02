@@ -1,18 +1,27 @@
 'use client';
 
 import { getSession, useSession } from 'next-auth/react';
-import { useState, useEffect } from 'react';
-import { Loader } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { LoginForm } from './login-form';
-import toast from 'react-hot-toast';
+import { LoadingScreen } from './loading-screen';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Fire-and-forget DB warm-up. Neon's free tier suspends compute after
+  // ~5 min idle; the first query takes a few seconds to wake it back
+  // up. Triggering it as soon as the app mounts (in parallel with
+  // rendering the login form) means the actual login click is fast.
+  useEffect(() => {
+    fetch('/api/health/warmup', { cache: 'no-store' }).catch(() => {});
+  }, []);
+
   const handleLoginFeedback = async (
-    setIsModalOpen: (state: boolean) => void
+    setIsModalOpen: (state: boolean) => void,
   ) => {
     const updatedSession = await getSession();
 
@@ -34,11 +43,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [session, status]);
 
   if (status === 'loading') {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <Loader className='w-8 h-8 animate-spin text-muted-foreground' />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!session || session.user.role !== 'ADMIN') {
