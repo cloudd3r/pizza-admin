@@ -14,7 +14,7 @@ export const Providers: React.FC<React.PropsWithChildren> = ({ children }) => {
         <AuthGuard>{children}</AuthGuard>
       </SessionProvider>
       <Toaster />
-      <NextTopLoader />
+      <NextTopLoader showSpinner={false} />
     </>
   );
 };
