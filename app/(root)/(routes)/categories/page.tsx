@@ -1,23 +1,10 @@
-import { prisma } from '@/prisma/prisma-client';
-import { format } from 'date-fns';
-
-import { CategoryColumn } from './components/columns';
+import { getCategoryRows } from '@/lib/admin-data';
 import { CategoryClient } from './components/client';
 
 export const dynamic = 'force-dynamic';
 
 const CategoriesPage = async () => {
-  const categories = await prisma.category.findMany({
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-
-  const formattedCategories: CategoryColumn[] = categories.map((item) => ({
-    id: item.id,
-    name: item.name,
-    createdAt: format(item.createdAt, 'MMMM do, yyyy'),
-  }));
+  const formattedCategories = await getCategoryRows();
 
   return (
     <div className='flex-col'>

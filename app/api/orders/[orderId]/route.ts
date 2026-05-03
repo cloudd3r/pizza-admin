@@ -1,6 +1,7 @@
 import { OrderStatus } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,7 @@ export async function PATCH(req: Request, { params }: Params) {
       where: { id: Number(orderId) },
       data: { status: body.status },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(order);
   } catch (err) {

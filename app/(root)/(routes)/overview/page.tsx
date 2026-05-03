@@ -1,66 +1,9 @@
-import { prisma } from '@/prisma/prisma-client';
+import { getOverviewCards } from '@/lib/admin-data';
 
 export const dynamic = 'force-dynamic';
 
-const formatCurrency = (value: number) => `${value} ₽`;
-
 const OverviewPage = async () => {
-  const [
-    categoriesCount,
-    productsCount,
-    ingredientsCount,
-    orders,
-    pendingOrdersCount,
-    storiesCount,
-  ] = await Promise.all([
-    prisma.category.count(),
-    prisma.product.count(),
-    prisma.ingredient.count(),
-    prisma.order.findMany({
-      select: {
-        totalAmount: true,
-        status: true,
-      },
-    }),
-    prisma.order.count({
-      where: {
-        status: 'PENDING',
-      },
-    }),
-    prisma.story.count(),
-  ]);
-
-  const revenue = orders
-    .filter((order) => order.status === 'SUCCEEDED')
-    .reduce((sum, order) => sum + order.totalAmount, 0);
-
-  const cards = [
-    {
-      label: 'Revenue',
-      value: formatCurrency(revenue),
-      description: 'Succeeded orders total',
-    },
-    {
-      label: 'Orders',
-      value: String(orders.length),
-      description: `${pendingOrdersCount} pending`,
-    },
-    {
-      label: 'Products',
-      value: String(productsCount),
-      description: `${categoriesCount} categories`,
-    },
-    {
-      label: 'Ingredients',
-      value: String(ingredientsCount),
-      description: 'Available modifiers',
-    },
-    {
-      label: 'Stories',
-      value: String(storiesCount),
-      description: 'Storefront carousel items',
-    },
-  ];
+  const cards = await getOverviewCards();
 
   return (
     <div className='flex-col'>

@@ -1,24 +1,11 @@
-import { format } from 'date-fns';
-
-import { prisma } from '@/prisma/prisma-client';
+import { getIngredientRows } from '@/lib/admin-data';
 
 import { IngredientClient } from './components/client';
-import { IngredientColumn } from './components/columns';
 
 export const dynamic = 'force-dynamic';
 
 const IngredientsPage = async () => {
-  const ingredients = await prisma.ingredient.findMany({
-    orderBy: { createdAt: 'desc' },
-  });
-
-  const formatted: IngredientColumn[] = ingredients.map((item) => ({
-    id: item.id,
-    name: item.name,
-    price: item.price,
-    imageUrl: item.imageUrl,
-    createdAt: format(item.createdAt, 'MMMM do, yyyy'),
-  }));
+  const formatted = await getIngredientRows();
 
   return (
     <div className='flex-col'>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -143,6 +144,7 @@ export async function POST(req: Request) {
         ingredients: true,
       },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(productWithRelations);
   } catch (err) {

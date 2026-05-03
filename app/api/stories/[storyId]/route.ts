@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -95,6 +96,7 @@ export async function PATCH(req: Request, { params }: Params) {
         },
       });
     }
+    invalidateAdminDataCache();
 
     const story = await prisma.story.findUnique({
       where: { id },
@@ -125,6 +127,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     const story = await prisma.story.delete({
       where: { id },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(story);
   } catch (err) {

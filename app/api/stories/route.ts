@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
         },
       });
     }
+    invalidateAdminDataCache();
 
     const storyWithItems = await prisma.story.findUnique({
       where: { id: story.id },

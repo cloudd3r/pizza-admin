@@ -1,28 +1,11 @@
-import { format } from 'date-fns';
-
-import { prisma } from '@/prisma/prisma-client';
+import { getStoryRows } from '@/lib/admin-data';
 
 import { StoryClient } from './components/client';
-import { StoryColumn } from './components/columns';
 
 export const dynamic = 'force-dynamic';
 
 const StoriesPage = async () => {
-  const stories = await prisma.story.findMany({
-    include: {
-      items: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-
-  const formattedStories: StoryColumn[] = stories.map((story) => ({
-    id: story.id,
-    previewImageUrl: story.previewImageUrl,
-    itemsCount: story.items.length,
-    createdAt: format(story.createdAt, 'MMMM do, yyyy'),
-  }));
+  const formattedStories = await getStoryRows();
 
   return (
     <div className='flex-col'>
