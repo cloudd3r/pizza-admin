@@ -51,6 +51,16 @@ const buildConnectionString = (): string => {
   return url;
 };
 
+const buildAdapter = () => {
+  const url = process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
+
+  if (!url) {
+    return undefined;
+  }
+
+  return new PrismaNeonHTTP(url, {});
+};
+
 /**
  * Detect transient network errors that are safe to retry. We look at
  * Node's standard error codes and the wrapped causes from Neon's HTTP
@@ -118,9 +128,9 @@ const retryOnTransient = async <T>(
 };
 
 const prismaClientSingleton = () => {
-  const adapter = new PrismaNeonHTTP(buildConnectionString(), {});
+  const adapter = buildAdapter();
   const baseClient = new PrismaClient({
-    adapter,
+    ...(adapter ? { adapter } : {}),
     log:
       process.env.NODE_ENV === 'development'
         ? ['error', 'warn']

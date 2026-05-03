@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 
 import { prisma } from '@/prisma/prisma-client';
 
+export const dynamic = 'force-dynamic';
+
 type Params = { params: Promise<{ ingredientId: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
