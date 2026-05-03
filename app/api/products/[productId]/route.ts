@@ -21,6 +21,12 @@ type ProductBody = {
   items?: ProductItemBody[];
 };
 
+type NormalizedProductItem = {
+  price: number;
+  size: number | null;
+  pizzaType: number | null;
+};
+
 const normalizeItems = (items?: ProductItemBody[]) => {
   if (!items?.length) return null;
 
@@ -44,6 +50,49 @@ const validateBody = (body: ProductBody) => {
   }
 
   return { normalizedItems };
+};
+
+const normalizeIngredientIds = (ids?: number[]) =>
+  Array.from(
+    new Set(
+      ids
+        ?.map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0) ?? [],
+    ),
+  );
+
+const createProductItems = async (
+  productId: number,
+  items: NormalizedProductItem[],
+) => {
+  for (const item of items) {
+    await prisma.productItem.create({
+      data: {
+        productId,
+        price: item.price,
+        size: item.size,
+        pizzaType: item.pizzaType,
+      },
+    });
+  }
+};
+
+const replaceProductIngredients = async (
+  productId: number,
+  ingredientIds: number[],
+) => {
+  await prisma.$executeRaw`
+    DELETE FROM "_IngredientToProduct"
+    WHERE "B" = ${productId}
+  `;
+
+  for (const ingredientId of ingredientIds) {
+    await prisma.$executeRaw`
+      INSERT INTO "_IngredientToProduct" ("A", "B")
+      VALUES (${ingredientId}, ${productId})
+      ON CONFLICT DO NOTHING
+    `;
+  }
 };
 
 export async function GET(_req: Request, { params }: Params) {
@@ -96,24 +145,19 @@ export async function PATCH(req: Request, { params }: Params) {
         name: body.name as string,
         imageUrl: body.imageUrl as string,
         categoryId: Number(body.categoryId),
-        ingredients: {
-          set: body.ingredientIds?.map((id) => ({ id })) ?? [],
-        },
-        items: {
-          deleteMany: {},
-        },
       },
     });
 
-    const product = await prisma.product.update({
+    const id = Number(productId);
+
+    await prisma.productItem.deleteMany({
+      where: { productId: id },
+    });
+    await createProductItems(id, validation.normalizedItems);
+    await replaceProductIngredients(id, normalizeIngredientIds(body.ingredientIds));
+
+    const product = await prisma.product.findUnique({
       where: { id: Number(productId) },
-      data: {
-        items: {
-          createMany: {
-            data: validation.normalizedItems,
-          },
-        },
-      },
       include: {
         items: true,
         ingredients: true,
@@ -135,8 +179,15 @@ export async function DELETE(_req: Request, { params }: Params) {
       return new NextResponse('Product id is required', { status: 400 });
     }
 
+    const id = Number(productId);
+
+    await prisma.productItem.deleteMany({
+      where: { productId: id },
+    });
+    await replaceProductIngredients(id, []);
+
     const product = await prisma.product.delete({
-      where: { id: Number(productId) },
+      where: { id },
     });
 
     return NextResponse.json(product);

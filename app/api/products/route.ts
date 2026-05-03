@@ -19,6 +19,12 @@ type ProductBody = {
   items?: ProductItemBody[];
 };
 
+type NormalizedProductItem = {
+  price: number;
+  size: number | null;
+  pizzaType: number | null;
+};
+
 const normalizeItems = (items?: ProductItemBody[]) => {
   if (!items?.length) return null;
 
@@ -42,6 +48,49 @@ const validateBody = (body: ProductBody) => {
   }
 
   return { normalizedItems };
+};
+
+const normalizeIngredientIds = (ids?: number[]) =>
+  Array.from(
+    new Set(
+      ids
+        ?.map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0) ?? [],
+    ),
+  );
+
+const createProductItems = async (
+  productId: number,
+  items: NormalizedProductItem[],
+) => {
+  for (const item of items) {
+    await prisma.productItem.create({
+      data: {
+        productId,
+        price: item.price,
+        size: item.size,
+        pizzaType: item.pizzaType,
+      },
+    });
+  }
+};
+
+const replaceProductIngredients = async (
+  productId: number,
+  ingredientIds: number[],
+) => {
+  await prisma.$executeRaw`
+    DELETE FROM "_IngredientToProduct"
+    WHERE "B" = ${productId}
+  `;
+
+  for (const ingredientId of ingredientIds) {
+    await prisma.$executeRaw`
+      INSERT INTO "_IngredientToProduct" ("A", "B")
+      VALUES (${ingredientId}, ${productId})
+      ON CONFLICT DO NOTHING
+    `;
+  }
 };
 
 export async function GET() {
@@ -78,22 +127,24 @@ export async function POST(req: Request) {
         name: body.name as string,
         imageUrl: body.imageUrl as string,
         categoryId: Number(body.categoryId),
-        ingredients: {
-          connect: body.ingredientIds?.map((id) => ({ id })) ?? [],
-        },
-        items: {
-          createMany: {
-            data: validation.normalizedItems,
-          },
-        },
       },
+    });
+
+    await createProductItems(product.id, validation.normalizedItems);
+    await replaceProductIngredients(
+      product.id,
+      normalizeIngredientIds(body.ingredientIds),
+    );
+
+    const productWithRelations = await prisma.product.findUnique({
+      where: { id: product.id },
       include: {
         items: true,
         ingredients: true,
       },
     });
 
-    return NextResponse.json(product);
+    return NextResponse.json(productWithRelations);
   } catch (err) {
     console.log(`[PRODUCTS_POST] ${err}`);
     return new NextResponse('Internal error', { status: 500 });
