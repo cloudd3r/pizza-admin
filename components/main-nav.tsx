@@ -42,6 +42,11 @@ export const MainNav: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
       active: pathname === `/orders`,
     },
     {
+      href: `/stories`,
+      label: 'Сторис',
+      active: pathname === `/stories`,
+    },
+    {
       href: `/settings`,
       label: 'Настройки',
       active: pathname === `/settings`,
