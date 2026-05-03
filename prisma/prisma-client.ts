@@ -1,4 +1,5 @@
 import { PrismaNeonHTTP } from '@prisma/adapter-neon';
+import { neonConfig } from '@neondatabase/serverless';
 import { PrismaClient } from '@prisma/client';
 
 /**
@@ -37,6 +38,40 @@ import { PrismaClient } from '@prisma/client';
  * are not supported over HTTP. Batch transactions (`prisma.$transaction([…])`)
  * still work. The current admin app does not use interactive transactions.
  */
+
+const getNeonFetchTimeoutMs = () => {
+  const value = Number(process.env.NEON_FETCH_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : 5000;
+};
+
+const NEON_FETCH_TIMEOUT_MS = getNeonFetchTimeoutMs();
+
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+  const controller = new AbortController();
+  const parentSignal = init?.signal;
+  const timeout = setTimeout(() => controller.abort(), NEON_FETCH_TIMEOUT_MS);
+
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+
+  if (parentSignal?.aborted) {
+    controller.abort(parentSignal.reason);
+  } else {
+    parentSignal?.addEventListener('abort', abortFromParent, { once: true });
+  }
+
+  try {
+    const requestInit: RequestInit = init
+      ? { ...init, signal: controller.signal }
+      : { signal: controller.signal };
+
+    return await fetch(input, requestInit);
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener('abort', abortFromParent);
+  }
+};
+
+neonConfig.fetchFunction = fetchWithTimeout;
 
 const buildConnectionString = (): string => {
   // Prefer the direct (non-pooled) URL. The HTTP adapter doesn't open a
@@ -81,27 +116,39 @@ const TRANSIENT_ERROR_CODES = new Set([
   'ENETDOWN',
   'ENETUNREACH',
   'EHOSTUNREACH',
+  'ABORT_ERR',
 ]);
 
 const TRANSIENT_MESSAGE_FRAGMENTS = [
   'fetch failed',
   'Connection terminated',
+  'Server has closed the connection',
   'socket hang up',
   'network error',
+  'AbortError',
+  'aborted',
 ];
 
 const isTransientError = (err: unknown): boolean => {
   if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: unknown; message?: unknown; cause?: unknown };
+  const e = err as {
+    code?: unknown;
+    name?: unknown;
+    message?: unknown;
+    cause?: unknown;
+    sourceError?: unknown;
+  };
   if (typeof e.code === 'string' && TRANSIENT_ERROR_CODES.has(e.code)) {
     return true;
   }
+  if (e.name === 'AbortError') return true;
   if (typeof e.message === 'string') {
     if (TRANSIENT_MESSAGE_FRAGMENTS.some((f) => (e.message as string).includes(f))) {
       return true;
     }
   }
   if (e.cause) return isTransientError(e.cause);
+  if (e.sourceError) return isTransientError(e.sourceError);
   return false;
 };
 
