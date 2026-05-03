@@ -21,11 +21,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 
 const storyItemSchema = z.object({
-  sourceUrl: z.string().min(1, 'Story item image is required'),
+  sourceUrl: z.string().url('Upload a story item image'),
 });
 
 const formSchema = z.object({
@@ -63,7 +62,9 @@ export const StoryForm: React.FC<StoryFormProps> = ({ initialData }) => {
     defaultValues: {
       previewImageUrl: initialData?.previewImageUrl ?? '',
       items: initialData?.items.length
-        ? initialData.items.map((item) => ({ sourceUrl: item.sourceUrl }))
+        ? initialData.items.map((item) => ({
+            sourceUrl: item.sourceUrl === '#' ? '' : item.sourceUrl,
+          }))
         : [emptyItem],
     },
   });
@@ -150,12 +151,13 @@ export const StoryForm: React.FC<StoryFormProps> = ({ initialData }) => {
                     name={`items.${index}.sourceUrl`}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Item image URL</FormLabel>
+                        <FormLabel>Story image</FormLabel>
                         <FormControl>
-                          <Input
+                          <ImageUpload
+                            value={field.value}
                             disabled={loading}
-                            placeholder='https://...'
-                            {...field}
+                            onChange={field.onChange}
+                            onRemove={() => field.onChange('')}
                           />
                         </FormControl>
                         <FormMessage />

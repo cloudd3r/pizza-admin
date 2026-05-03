@@ -17,7 +17,7 @@ type StoryBody = {
 const normalizeItems = (items?: StoryBody['items']) =>
   items
     ?.map((item) => ({ sourceUrl: item.sourceUrl?.trim() ?? '' }))
-    .filter((item) => item.sourceUrl) ?? [];
+    .filter((item) => /^https?:\/\//.test(item.sourceUrl)) ?? [];
 
 const validateBody = (body: StoryBody) => {
   const items = normalizeItems(body.items);
