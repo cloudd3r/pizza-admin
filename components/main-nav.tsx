@@ -42,6 +42,11 @@ export const MainNav: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
       active: pathname === `/orders`,
     },
     {
+      href: `/stories`,
+      label: 'Сторис',
+      active: pathname === `/stories`,
+    },
+    {
       href: `/settings`,
       label: 'Настройки',
       active: pathname === `/settings`,
@@ -54,6 +59,7 @@ export const MainNav: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
         <Link
           key={route.href}
           href={route.href}
+          prefetch={false}
           className={cn(
             'text-sm font-medium transition-colors hover:text-primary',
             route.active

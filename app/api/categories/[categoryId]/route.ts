@@ -1,5 +1,8 @@
 import { prisma } from '@/prisma/prisma-client';
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ categoryId: string }> };
 
@@ -49,6 +52,7 @@ export async function PATCH(req: Request, { params }: Params) {
         name,
       },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(category);
   } catch (err) {
@@ -70,6 +74,7 @@ export async function DELETE(_req: Request, { params }: Params) {
         id: Number(categoryId),
       },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(category);
   } catch (err) {

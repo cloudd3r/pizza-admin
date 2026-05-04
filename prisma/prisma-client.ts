@@ -1,4 +1,5 @@
 import { PrismaNeonHTTP } from '@prisma/adapter-neon';
+import { neonConfig } from '@neondatabase/serverless';
 import { PrismaClient } from '@prisma/client';
 
 /**
@@ -27,7 +28,7 @@ import { PrismaClient } from '@prisma/client';
  * connection, no client-side pool, no idle disconnects. It works
  * identically in dev, in Node, and in serverless / edge runtimes.
  *
- * However, even HTTPS requests can occasionally fail with transient
+ * Even HTTPS requests can occasionally fail with transient
  * network errors (ECONNRESET, fetch failed, ETIMEDOUT) caused by ISP /
  * router NAT timeouts, brief Neon edge hiccups, etc. Without retry,
  * these surface as user-visible errors. We wrap every Prisma operation
@@ -38,17 +39,61 @@ import { PrismaClient } from '@prisma/client';
  * still work. The current admin app does not use interactive transactions.
  */
 
+const getConnectionString = () =>
+  process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
+
+const getNeonFetchTimeoutMs = () => {
+  const value = Number(process.env.NEON_FETCH_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : 4000;
+};
+
+const NEON_FETCH_TIMEOUT_MS = getNeonFetchTimeoutMs();
+
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+  const controller = new AbortController();
+  const parentSignal = init?.signal;
+  const timeout = setTimeout(() => controller.abort(), NEON_FETCH_TIMEOUT_MS);
+
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+
+  if (parentSignal?.aborted) {
+    controller.abort(parentSignal.reason);
+  } else {
+    parentSignal?.addEventListener('abort', abortFromParent, { once: true });
+  }
+
+  try {
+    const requestInit: RequestInit = init
+      ? { ...init, signal: controller.signal }
+      : { signal: controller.signal };
+
+    return await fetch(input, requestInit);
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener('abort', abortFromParent);
+  }
+};
+
+neonConfig.fetchFunction = fetchWithTimeout;
+
 const buildConnectionString = (): string => {
-  // Prefer the direct (non-pooled) URL. The HTTP adapter doesn't open a
-  // long-lived pool either way, but the direct URL avoids PgBouncer flags
-  // tagging onto the SQL-over-HTTP requests.
-  const url = process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL;
+  const url = getConnectionString();
   if (!url) {
     throw new Error(
       'Missing POSTGRES_URL_NON_POOLING (or POSTGRES_URL) env variable',
     );
   }
   return url;
+};
+
+const buildAdapter = () => {
+  const url = getConnectionString();
+
+  if (!url) {
+    return undefined;
+  }
+
+  return new PrismaNeonHTTP(url, {});
 };
 
 /**
@@ -71,27 +116,39 @@ const TRANSIENT_ERROR_CODES = new Set([
   'ENETDOWN',
   'ENETUNREACH',
   'EHOSTUNREACH',
+  'ABORT_ERR',
 ]);
 
 const TRANSIENT_MESSAGE_FRAGMENTS = [
   'fetch failed',
   'Connection terminated',
+  'Server has closed the connection',
   'socket hang up',
   'network error',
+  'AbortError',
+  'aborted',
 ];
 
 const isTransientError = (err: unknown): boolean => {
   if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: unknown; message?: unknown; cause?: unknown };
+  const e = err as {
+    code?: unknown;
+    name?: unknown;
+    message?: unknown;
+    cause?: unknown;
+    sourceError?: unknown;
+  };
   if (typeof e.code === 'string' && TRANSIENT_ERROR_CODES.has(e.code)) {
     return true;
   }
+  if (e.name === 'AbortError') return true;
   if (typeof e.message === 'string') {
     if (TRANSIENT_MESSAGE_FRAGMENTS.some((f) => (e.message as string).includes(f))) {
       return true;
     }
   }
   if (e.cause) return isTransientError(e.cause);
+  if (e.sourceError) return isTransientError(e.sourceError);
   return false;
 };
 
@@ -100,7 +157,7 @@ const sleep = (ms: number) =>
 
 const retryOnTransient = async <T>(
   fn: () => Promise<T>,
-  maxAttempts = 3,
+  maxAttempts = 2,
 ): Promise<T> => {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -118,9 +175,9 @@ const retryOnTransient = async <T>(
 };
 
 const prismaClientSingleton = () => {
-  const adapter = new PrismaNeonHTTP(buildConnectionString(), {});
+  const adapter = buildAdapter();
   const baseClient = new PrismaClient({
-    adapter,
+    ...(adapter ? { adapter } : {}),
     log:
       process.env.NODE_ENV === 'development'
         ? ['error', 'warn']

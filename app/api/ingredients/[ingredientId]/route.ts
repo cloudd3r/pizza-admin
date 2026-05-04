@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { prisma } from '@/prisma/prisma-client';
+
+export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ ingredientId: string }> };
 
@@ -51,6 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
       where: { id: Number(ingredientId) },
       data: { name, price: Math.round(price), imageUrl },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(ingredient);
   } catch (err) {
@@ -69,6 +73,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     const ingredient = await prisma.ingredient.delete({
       where: { id: Number(ingredientId) },
     });
+    invalidateAdminDataCache();
 
     return NextResponse.json(ingredient);
   } catch (err) {
