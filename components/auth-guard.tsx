@@ -4,7 +4,12 @@ import { getSession, useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { LoginForm } from './login-form';
 import { LoadingScreen } from './loading-screen';
 
@@ -49,8 +54,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!session || session.user.role !== 'ADMIN') {
     return (
       <Dialog open={isModalOpen}>
-        <DialogTitle />
         <DialogContent>
+          <DialogTitle className='sr-only'>Вход в админку</DialogTitle>
+          <DialogDescription className='sr-only'>
+            Войдите под аккаунтом администратора, чтобы управлять пиццерией.
+          </DialogDescription>
           <LoginForm
             onSuccess={() => {
               handleLoginFeedback(setIsModalOpen);
