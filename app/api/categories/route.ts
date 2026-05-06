@@ -1,10 +1,14 @@
 import { prisma } from '@/prisma/prisma-client';
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { requireAdmin } from '@/lib/require-admin';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const body = await req.json();
     const { name } = body;
@@ -28,6 +32,9 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const categories = await prisma.category.findMany();
 
