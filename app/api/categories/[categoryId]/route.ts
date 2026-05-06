@@ -1,5 +1,6 @@
 import { prisma } from '@/prisma/prisma-client';
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { requireAdmin } from '@/lib/require-admin';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -7,6 +8,9 @@ export const dynamic = 'force-dynamic';
 type Params = { params: Promise<{ categoryId: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { categoryId } = await params;
     if (!categoryId) {
@@ -31,6 +35,9 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const body = await req.json();
     const { name } = body;
@@ -62,6 +69,9 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { categoryId } = await params;
 

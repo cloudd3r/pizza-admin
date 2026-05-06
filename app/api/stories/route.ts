@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,9 @@ const validateBody = (body: StoryBody) => {
 };
 
 export async function POST(req: Request) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const body = (await req.json()) as StoryBody;
     const validation = validateBody(body);

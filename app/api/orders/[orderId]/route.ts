@@ -2,6 +2,7 @@ import { OrderStatus } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,9 @@ const isOrderStatus = (status: unknown): status is OrderStatus =>
   Object.values(OrderStatus).includes(status as OrderStatus);
 
 export async function PATCH(req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { orderId } = await params;
     const body = (await req.json()) as { status?: unknown };

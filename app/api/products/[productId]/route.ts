@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +98,9 @@ const replaceProductIngredients = async (
 };
 
 export async function GET(_req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { productId } = await params;
 
@@ -127,6 +131,9 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { productId } = await params;
     const body = (await req.json()) as ProductBody;
@@ -174,6 +181,9 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { productId } = await params;
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
@@ -95,6 +96,9 @@ const replaceProductIngredients = async (
 };
 
 export async function GET() {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const products = await prisma.product.findMany({
       include: {
@@ -115,6 +119,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const body = (await req.json()) as ProductBody;
     const validation = validateBody(body);
