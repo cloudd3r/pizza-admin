@@ -16,8 +16,13 @@ import {
 } from '@/components/ui/select';
 
 import { columns, OrderColumn, OrderStatusValue } from './columns';
+import {
+  FULFILLMENT_OPTIONS,
+  type OrderFulfillmentStatus,
+} from './order-fulfillment-options';
 
 type StatusFilter = 'ALL' | OrderStatusValue;
+type FulfillmentFilter = 'ALL' | OrderFulfillmentStatus;
 type DateFilter = 'today' | '7d' | '30d' | 'all';
 
 interface OrderClientProps {
@@ -68,6 +73,7 @@ const matchesSearch = (order: OrderColumn, query: string) => {
 
 export const OrderClient: React.FC<OrderClientProps> = ({ data }) => {
   const [status, setStatus] = useState<StatusFilter>('ALL');
+  const [fulfillment, setFulfillment] = useState<FulfillmentFilter>('ALL');
   const [dateRange, setDateRange] = useState<DateFilter>('all');
   const [search, setSearch] = useState('');
 
@@ -76,13 +82,15 @@ export const OrderClient: React.FC<OrderClientProps> = ({ data }) => {
 
     return data.filter((order) => {
       if (status !== 'ALL' && order.status !== status) return false;
+      if (fulfillment !== 'ALL' && order.fulfillmentStatus !== fulfillment)
+        return false;
       if (threshold !== null) {
         const ts = Date.parse(order.createdAtIso);
         if (Number.isNaN(ts) || ts < threshold) return false;
       }
       return matchesSearch(order, search);
     });
-  }, [data, status, dateRange, search]);
+  }, [data, status, fulfillment, dateRange, search]);
 
   const counts = useMemo(() => {
     const totalsByStatus: Record<StatusFilter, number> = {
@@ -95,14 +103,34 @@ export const OrderClient: React.FC<OrderClientProps> = ({ data }) => {
     return totalsByStatus;
   }, [data]);
 
+  const fulfillmentCounts = useMemo(() => {
+    const acc: Record<FulfillmentFilter, number> = {
+      ALL: data.length,
+      NEW: 0,
+      CONFIRMED: 0,
+      COOKING: 0,
+      READY: 0,
+      DELIVERING: 0,
+      DELIVERED: 0,
+      CANCELLED: 0,
+      REFUNDED: 0,
+    };
+    for (const order of data) acc[order.fulfillmentStatus] += 1;
+    return acc;
+  }, [data]);
+
   const resetFilters = () => {
     setStatus('ALL');
+    setFulfillment('ALL');
     setDateRange('all');
     setSearch('');
   };
 
   const filtersActive =
-    status !== 'ALL' || dateRange !== 'all' || search.length > 0;
+    status !== 'ALL' ||
+    fulfillment !== 'ALL' ||
+    dateRange !== 'all' ||
+    search.length > 0;
 
   return (
     <>
@@ -123,10 +151,10 @@ export const OrderClient: React.FC<OrderClientProps> = ({ data }) => {
           onValueChange={(value) => setStatus(value as StatusFilter)}
         >
           <SelectTrigger className='w-[180px]'>
-            <SelectValue placeholder='Status' />
+            <SelectValue placeholder='Payment' />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>All statuses ({counts.ALL})</SelectItem>
+            <SelectItem value='ALL'>All payments ({counts.ALL})</SelectItem>
             <SelectItem value='PENDING'>
               Pending ({counts.PENDING})
             </SelectItem>
@@ -136,6 +164,24 @@ export const OrderClient: React.FC<OrderClientProps> = ({ data }) => {
             <SelectItem value='CANCELLED'>
               Cancelled ({counts.CANCELLED})
             </SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={fulfillment}
+          onValueChange={(value) => setFulfillment(value as FulfillmentFilter)}
+        >
+          <SelectTrigger className='w-[200px]'>
+            <SelectValue placeholder='Fulfillment' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>
+              All fulfillment ({fulfillmentCounts.ALL})
+            </SelectItem>
+            {FULFILLMENT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label} ({fulfillmentCounts[option.value]})
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select
