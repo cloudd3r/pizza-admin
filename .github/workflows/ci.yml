@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    name: lint + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Build needs valid-looking env so Next.js doesn't crash during static
+      # analysis. Real DB calls are gated by force-dynamic + auth, so the
+      # values below are intentionally fake stubs.
+      POSTGRES_URL: postgres://stub:stub@localhost:5432/stub?sslmode=require
+      POSTGRES_URL_NON_POOLING: postgres://stub:stub@localhost:5432/stub?sslmode=require
+      NEXTAUTH_SECRET: ci_dummy_secret_value_long_enough
+      NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ci-dummy
+      NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ci-dummy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
