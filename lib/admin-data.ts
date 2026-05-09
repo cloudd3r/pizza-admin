@@ -169,13 +169,17 @@ export const getOrderRows = async () => {
   return orders.map<OrderColumn>((order) => ({
     id: order.id,
     customer: order.fullName,
+    email: order.email,
+    phone: order.phone,
     contacts: `${order.email} · ${order.phone}`,
     address: order.address,
     totalAmount: formatCurrency(order.totalAmount),
+    totalAmountValue: order.totalAmount,
     status: order.status,
     paymentId: order.paymentId ?? '—',
     items: parseOrderItems(order.items),
     createdAt: formatDate(order.createdAt),
+    createdAtIso: order.createdAt.toISOString(),
   }));
 };
 

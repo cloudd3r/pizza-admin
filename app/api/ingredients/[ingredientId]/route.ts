@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
 import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
@@ -8,28 +10,39 @@ export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ ingredientId: string }> };
 
+const ingredientBodySchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  price: z.coerce
+    .number({ invalid_type_error: 'Price is required' })
+    .int('Price must be an integer')
+    .nonnegative('Price must be non-negative'),
+  imageUrl: z.string().trim().url('Image URL must be a valid URL'),
+});
+
+const parseIngredientId = (raw: string | undefined) => {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
 export async function GET(_req: Request, { params }: Params) {
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
   try {
     const { ingredientId } = await params;
-    if (!ingredientId) {
-      return new NextResponse('Ingredient id is required', { status: 400 });
-    }
+    const id = parseIngredientId(ingredientId);
+    if (!id) return apiError('Ingredient id is required', 400);
 
     const ingredient = await prisma.ingredient.findUnique({
-      where: { id: Number(ingredientId) },
+      where: { id },
     });
 
-    if (!ingredient) {
-      return new NextResponse('Ingredient not found', { status: 404 });
-    }
+    if (!ingredient) return apiError('Ingredient not found', 404);
 
     return NextResponse.json(ingredient);
   } catch (err) {
-    console.log('[INGREDIENT_GET]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('INGREDIENT_GET', err);
   }
 }
 
@@ -39,34 +52,28 @@ export async function PATCH(req: Request, { params }: Params) {
 
   try {
     const { ingredientId } = await params;
-    const body = await req.json();
-    const { name, price, imageUrl } = body as {
-      name?: string;
-      price?: number;
-      imageUrl?: string;
-    };
+    const id = parseIngredientId(ingredientId);
+    if (!id) return apiError('Ingredient id is required', 400);
 
-    if (!ingredientId) {
-      return new NextResponse('Ingredient id is required', { status: 400 });
-    }
-    if (!name) return new NextResponse('Name is required', { status: 400 });
-    if (typeof price !== 'number' || Number.isNaN(price)) {
-      return new NextResponse('Price is required', { status: 400 });
-    }
-    if (!imageUrl) {
-      return new NextResponse('Image is required', { status: 400 });
-    }
+    const raw = await req.json();
+    const parsed = ingredientBodySchema.parse(raw);
 
     const ingredient = await prisma.ingredient.update({
-      where: { id: Number(ingredientId) },
-      data: { name, price: Math.round(price), imageUrl },
+      where: { id },
+      data: {
+        name: parsed.name,
+        price: Math.round(parsed.price),
+        imageUrl: parsed.imageUrl,
+      },
     });
     invalidateAdminDataCache();
 
     return NextResponse.json(ingredient);
   } catch (err) {
-    console.log('[INGREDIENT_PATCH]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof z.ZodError) {
+      return apiZodError(err);
+    }
+    return apiInternalError('INGREDIENT_PATCH', err);
   }
 }
 
@@ -76,18 +83,16 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   try {
     const { ingredientId } = await params;
-    if (!ingredientId) {
-      return new NextResponse('Ingredient id is required', { status: 400 });
-    }
+    const id = parseIngredientId(ingredientId);
+    if (!id) return apiError('Ingredient id is required', 400);
 
     const ingredient = await prisma.ingredient.delete({
-      where: { id: Number(ingredientId) },
+      where: { id },
     });
     invalidateAdminDataCache();
 
     return NextResponse.json(ingredient);
   } catch (err) {
-    console.log('[INGREDIENT_DELETE]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('INGREDIENT_DELETE', err);
   }
 }

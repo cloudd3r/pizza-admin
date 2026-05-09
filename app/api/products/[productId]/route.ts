@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
+import {
+  dedupeIngredientIds,
+  normalizeProductItems,
+  productBodySchema,
+  replaceProductIngredients,
+  replaceProductVariants,
+} from '@/lib/product-admin-service';
 import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
@@ -8,93 +17,10 @@ export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ productId: string }> };
 
-type ProductItemBody = {
-  id?: number;
-  price?: number;
-  size?: number | null;
-  pizzaType?: number | null;
-};
-
-type ProductBody = {
-  name?: string;
-  imageUrl?: string;
-  categoryId?: string;
-  ingredientIds?: number[];
-  items?: ProductItemBody[];
-};
-
-type NormalizedProductItem = {
-  price: number;
-  size: number | null;
-  pizzaType: number | null;
-};
-
-const normalizeItems = (items?: ProductItemBody[]) => {
-  if (!items?.length) return null;
-
-  return items.map((item) => ({
-    price: Math.round(Number(item.price)),
-    size: item.size ? Number(item.size) : null,
-    pizzaType: item.pizzaType ? Number(item.pizzaType) : null,
-  }));
-};
-
-const validateBody = (body: ProductBody) => {
-  const { name, imageUrl, categoryId, items } = body;
-  const normalizedItems = normalizeItems(items);
-
-  if (!name) return { error: 'Name is required' };
-  if (!imageUrl) return { error: 'Image is required' };
-  if (!categoryId) return { error: 'Category id is required' };
-  if (!normalizedItems?.length) return { error: 'At least one item is required' };
-  if (normalizedItems.some((item) => !item.price || Number.isNaN(item.price))) {
-    return { error: 'Valid item prices are required' };
-  }
-
-  return { normalizedItems };
-};
-
-const normalizeIngredientIds = (ids?: number[]) =>
-  Array.from(
-    new Set(
-      ids
-        ?.map((id) => Number(id))
-        .filter((id) => Number.isInteger(id) && id > 0) ?? [],
-    ),
-  );
-
-const createProductItems = async (
-  productId: number,
-  items: NormalizedProductItem[],
-) => {
-  for (const item of items) {
-    await prisma.productItem.create({
-      data: {
-        productId,
-        price: item.price,
-        size: item.size,
-        pizzaType: item.pizzaType,
-      },
-    });
-  }
-};
-
-const replaceProductIngredients = async (
-  productId: number,
-  ingredientIds: number[],
-) => {
-  await prisma.$executeRaw`
-    DELETE FROM "_IngredientToProduct"
-    WHERE "B" = ${productId}
-  `;
-
-  for (const ingredientId of ingredientIds) {
-    await prisma.$executeRaw`
-      INSERT INTO "_IngredientToProduct" ("A", "B")
-      VALUES (${ingredientId}, ${productId})
-      ON CONFLICT DO NOTHING
-    `;
-  }
+const parseProductId = (raw: string | undefined) => {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
 };
 
 export async function GET(_req: Request, { params }: Params) {
@@ -103,13 +29,14 @@ export async function GET(_req: Request, { params }: Params) {
 
   try {
     const { productId } = await params;
+    const id = parseProductId(productId);
 
-    if (!productId) {
-      return new NextResponse('Product id is required', { status: 400 });
+    if (!id) {
+      return apiError('Product id is required', 400);
     }
 
     const product = await prisma.product.findUnique({
-      where: { id: Number(productId) },
+      where: { id },
       include: {
         category: true,
         ingredients: true,
@@ -120,13 +47,12 @@ export async function GET(_req: Request, { params }: Params) {
     });
 
     if (!product) {
-      return new NextResponse('Product not found', { status: 404 });
+      return apiError('Product not found', 404);
     }
 
     return NextResponse.json(product);
   } catch (err) {
-    console.log('[PRODUCT_GET]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('PRODUCT_GET', err);
   }
 }
 
@@ -136,36 +62,30 @@ export async function PATCH(req: Request, { params }: Params) {
 
   try {
     const { productId } = await params;
-    const body = (await req.json()) as ProductBody;
-    const validation = validateBody(body);
+    const id = parseProductId(productId);
 
-    if (!productId) {
-      return new NextResponse('Product id is required', { status: 400 });
+    if (!id) {
+      return apiError('Product id is required', 400);
     }
 
-    if ('error' in validation) {
-      return new NextResponse(validation.error, { status: 400 });
-    }
+    const raw = await req.json();
+    const parsed = productBodySchema.parse(raw);
+    const items = normalizeProductItems(parsed.items);
 
     await prisma.product.update({
-      where: { id: Number(productId) },
+      where: { id },
       data: {
-        name: body.name as string,
-        imageUrl: body.imageUrl as string,
-        categoryId: Number(body.categoryId),
+        name: parsed.name,
+        imageUrl: parsed.imageUrl,
+        categoryId: parsed.categoryId,
       },
     });
 
-    const id = Number(productId);
-
-    await prisma.productItem.deleteMany({
-      where: { productId: id },
-    });
-    await createProductItems(id, validation.normalizedItems);
-    await replaceProductIngredients(id, normalizeIngredientIds(body.ingredientIds));
+    await replaceProductVariants(id, items);
+    await replaceProductIngredients(id, dedupeIngredientIds(parsed.ingredientIds));
 
     const product = await prisma.product.findUnique({
-      where: { id: Number(productId) },
+      where: { id },
       include: {
         items: true,
         ingredients: true,
@@ -175,8 +95,13 @@ export async function PATCH(req: Request, { params }: Params) {
 
     return NextResponse.json(product);
   } catch (err) {
-    console.log('[PRODUCT_PATCH]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof ZodError) {
+      return apiZodError(err);
+    }
+    if (err instanceof Error && err.message.startsWith('Category id')) {
+      return apiError(err.message, 400);
+    }
+    return apiInternalError('PRODUCT_PATCH', err);
   }
 }
 
@@ -186,26 +111,19 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   try {
     const { productId } = await params;
+    const id = parseProductId(productId);
 
-    if (!productId) {
-      return new NextResponse('Product id is required', { status: 400 });
+    if (!id) {
+      return apiError('Product id is required', 400);
     }
 
-    const id = Number(productId);
-
-    await prisma.productItem.deleteMany({
-      where: { productId: id },
-    });
-    await replaceProductIngredients(id, []);
-
-    const product = await prisma.product.delete({
+    await prisma.product.delete({
       where: { id },
     });
     invalidateAdminDataCache();
 
-    return NextResponse.json(product);
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.log('[PRODUCT_DELETE]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('PRODUCT_DELETE', err);
   }
 }

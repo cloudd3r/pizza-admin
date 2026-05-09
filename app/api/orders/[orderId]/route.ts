@@ -1,7 +1,9 @@
 import { OrderStatus } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
 import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
@@ -9,9 +11,15 @@ export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ orderId: string }> };
 
-const isOrderStatus = (status: unknown): status is OrderStatus =>
-  typeof status === 'string' &&
-  Object.values(OrderStatus).includes(status as OrderStatus);
+const orderPatchSchema = z.object({
+  status: z.nativeEnum(OrderStatus),
+});
+
+const parseOrderId = (raw: string | undefined) => {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
 
 export async function PATCH(req: Request, { params }: Params) {
   const adminError = await requireAdmin();
@@ -19,25 +27,26 @@ export async function PATCH(req: Request, { params }: Params) {
 
   try {
     const { orderId } = await params;
-    const body = (await req.json()) as { status?: unknown };
+    const id = parseOrderId(orderId);
 
-    if (!orderId) {
-      return new NextResponse('Order id is required', { status: 400 });
+    if (!id) {
+      return apiError('Order id is required', 400);
     }
 
-    if (!isOrderStatus(body.status)) {
-      return new NextResponse('Valid status is required', { status: 400 });
-    }
+    const raw = await req.json();
+    const parsed = orderPatchSchema.parse(raw);
 
     const order = await prisma.order.update({
-      where: { id: Number(orderId) },
-      data: { status: body.status },
+      where: { id },
+      data: { status: parsed.status },
     });
     invalidateAdminDataCache();
 
     return NextResponse.json(order);
   } catch (err) {
-    console.log('[ORDER_PATCH]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof z.ZodError) {
+      return apiZodError(err);
+    }
+    return apiInternalError('ORDER_PATCH', err);
   }
 }

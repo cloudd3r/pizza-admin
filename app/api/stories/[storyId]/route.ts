@@ -1,37 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
 import { requireAdmin } from '@/lib/require-admin';
+import { storyBodySchema } from '@/lib/story-admin-service';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ storyId: string }> };
 
-type StoryBody = {
-  previewImageUrl?: string;
-  items?: Array<{
-    sourceUrl?: string;
-  }>;
-};
-
-const normalizeItems = (items?: StoryBody['items']) =>
-  items
-    ?.map((item) => ({ sourceUrl: item.sourceUrl?.trim() ?? '' }))
-    .filter((item) => /^https?:\/\//.test(item.sourceUrl)) ?? [];
-
-const validateBody = (body: StoryBody) => {
-  const items = normalizeItems(body.items);
-
-  if (!body.previewImageUrl) {
-    return { error: 'Preview image is required' };
-  }
-
-  if (!items.length) {
-    return { error: 'At least one story item is required' };
-  }
-
-  return { items };
+const parseStoryId = (raw: string | undefined) => {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
 };
 
 export async function GET(_req: Request, { params }: Params) {
@@ -40,13 +23,11 @@ export async function GET(_req: Request, { params }: Params) {
 
   try {
     const { storyId } = await params;
-
-    if (!storyId) {
-      return new NextResponse('Story id is required', { status: 400 });
-    }
+    const id = parseStoryId(storyId);
+    if (!id) return apiError('Story id is required', 400);
 
     const story = await prisma.story.findUnique({
-      where: { id: Number(storyId) },
+      where: { id },
       include: {
         items: {
           orderBy: { id: 'asc' },
@@ -54,14 +35,11 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
 
-    if (!story) {
-      return new NextResponse('Story not found', { status: 404 });
-    }
+    if (!story) return apiError('Story not found', 404);
 
     return NextResponse.json(story);
   } catch (err) {
-    console.log('[STORY_GET]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('STORY_GET', err);
   }
 }
 
@@ -71,23 +49,16 @@ export async function PATCH(req: Request, { params }: Params) {
 
   try {
     const { storyId } = await params;
-    const body = (await req.json()) as StoryBody;
-    const validation = validateBody(body);
+    const id = parseStoryId(storyId);
+    if (!id) return apiError('Story id is required', 400);
 
-    if (!storyId) {
-      return new NextResponse('Story id is required', { status: 400 });
-    }
-
-    if ('error' in validation) {
-      return new NextResponse(validation.error, { status: 400 });
-    }
-
-    const id = Number(storyId);
+    const raw = await req.json();
+    const parsed = storyBodySchema.parse(raw);
 
     await prisma.story.update({
       where: { id },
       data: {
-        previewImageUrl: body.previewImageUrl as string,
+        previewImageUrl: parsed.previewImageUrl,
       },
     });
 
@@ -95,7 +66,7 @@ export async function PATCH(req: Request, { params }: Params) {
       where: { storyId: id },
     });
 
-    for (const item of validation.items) {
+    for (const item of parsed.items) {
       await prisma.storyItem.create({
         data: {
           storyId: id,
@@ -112,8 +83,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
     return NextResponse.json(story);
   } catch (err) {
-    console.log('[STORY_PATCH]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof z.ZodError) {
+      return apiZodError(err);
+    }
+    return apiInternalError('STORY_PATCH', err);
   }
 }
 
@@ -123,12 +96,8 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   try {
     const { storyId } = await params;
-
-    if (!storyId) {
-      return new NextResponse('Story id is required', { status: 400 });
-    }
-
-    const id = Number(storyId);
+    const id = parseStoryId(storyId);
+    if (!id) return apiError('Story id is required', 400);
 
     await prisma.storyItem.deleteMany({
       where: { storyId: id },
@@ -141,7 +110,6 @@ export async function DELETE(_req: Request, { params }: Params) {
 
     return NextResponse.json(story);
   } catch (err) {
-    console.log('[STORY_DELETE]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('STORY_DELETE', err);
   }
 }
