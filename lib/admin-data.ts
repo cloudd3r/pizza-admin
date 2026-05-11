@@ -124,6 +124,8 @@ const productToRow = (item: Awaited<ReturnType<typeof getProductRecords>>[number
   isPizza: item.items.some((productItem) => productItem.pizzaType),
   active: item.active,
   sortOrder: item.sortOrder,
+  stopUntil: item.stopUntil ? item.stopUntil.toISOString() : null,
+  badges: item.badges ?? [],
   createdAt: formatDate(item.createdAt),
 });
 

@@ -31,6 +31,86 @@ export const productBodySchema = z.object({
     .min(0, 'Sort order must be 0 or higher')
     .optional()
     .default(0),
+  description: z
+    .string()
+    .trim()
+    .max(2000, 'Description is too long')
+    .nullable()
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : null)),
+  composition: z
+    .string()
+    .trim()
+    .max(2000, 'Composition is too long')
+    .nullable()
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : null)),
+  calories: z
+    .union([z.coerce.number().int().min(0).max(10000), z.literal(''), z.null()])
+    .nullable()
+    .optional()
+    .transform((value) =>
+      value === '' || value === null || value === undefined ? null : Number(value),
+    ),
+  proteins: z
+    .union([z.coerce.number().min(0).max(1000), z.literal(''), z.null()])
+    .nullable()
+    .optional()
+    .transform((value) =>
+      value === '' || value === null || value === undefined ? null : Number(value),
+    ),
+  fats: z
+    .union([z.coerce.number().min(0).max(1000), z.literal(''), z.null()])
+    .nullable()
+    .optional()
+    .transform((value) =>
+      value === '' || value === null || value === undefined ? null : Number(value),
+    ),
+  carbs: z
+    .union([z.coerce.number().min(0).max(1000), z.literal(''), z.null()])
+    .nullable()
+    .optional()
+    .transform((value) =>
+      value === '' || value === null || value === undefined ? null : Number(value),
+    ),
+  allergens: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .default([])
+    .transform((value) => {
+      const raw = Array.isArray(value) ? value : value.split(',');
+      return Array.from(
+        new Set(
+          raw
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0 && entry.length <= 64),
+        ),
+      );
+    }),
+  badges: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .default([])
+    .transform((value) => {
+      const raw = Array.isArray(value) ? value : value.split(',');
+      return Array.from(
+        new Set(
+          raw
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0 && entry.length <= 64),
+        ),
+      );
+    }),
+  stopUntil: z
+    .union([z.string(), z.date(), z.null()])
+    .nullable()
+    .optional()
+    .transform((value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return date;
+    }),
 });
 
 export type ProductBody = z.infer<typeof productBodySchema>;
