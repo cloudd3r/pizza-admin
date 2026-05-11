@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiInternalError, apiZodError } from '@/lib/api-error';
 import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
+
+const ingredientBodySchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  price: z.coerce
+    .number({ invalid_type_error: 'Price is required' })
+    .int('Price must be an integer')
+    .nonnegative('Price must be non-negative'),
+  imageUrl: z.string().trim().url('Image URL must be a valid URL'),
+});
 
 export async function GET() {
   const adminError = await requireAdmin();
@@ -16,8 +27,7 @@ export async function GET() {
     });
     return NextResponse.json(ingredients);
   } catch (err) {
-    console.log(`[INGREDIENTS_GET] ${err}`);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('INGREDIENTS_GET', err);
   }
 }
 
@@ -26,29 +36,23 @@ export async function POST(req: Request) {
   if (adminError) return adminError;
 
   try {
-    const body = await req.json();
-    const { name, price, imageUrl } = body as {
-      name?: string;
-      price?: number;
-      imageUrl?: string;
-    };
-
-    if (!name) return new NextResponse('Name is required', { status: 400 });
-    if (typeof price !== 'number' || Number.isNaN(price)) {
-      return new NextResponse('Price is required', { status: 400 });
-    }
-    if (!imageUrl) {
-      return new NextResponse('Image is required', { status: 400 });
-    }
+    const raw = await req.json();
+    const parsed = ingredientBodySchema.parse(raw);
 
     const ingredient = await prisma.ingredient.create({
-      data: { name, price: Math.round(price), imageUrl },
+      data: {
+        name: parsed.name,
+        price: Math.round(parsed.price),
+        imageUrl: parsed.imageUrl,
+      },
     });
     invalidateAdminDataCache();
 
     return NextResponse.json(ingredient);
   } catch (err) {
-    console.log(`[INGREDIENTS_POST] ${err}`);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof z.ZodError) {
+      return apiZodError(err);
+    }
+    return apiInternalError('INGREDIENTS_POST', err);
   }
 }

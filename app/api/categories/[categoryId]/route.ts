@@ -1,11 +1,24 @@
-import { prisma } from '@/prisma/prisma-client';
-import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
-import { requireAdmin } from '@/lib/require-admin';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
+import { requireAdmin } from '@/lib/require-admin';
+import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ categoryId: string }> };
+
+const categoryBodySchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+});
+
+const parseCategoryId = (raw: string | undefined) => {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
 
 export async function GET(_req: Request, { params }: Params) {
   const adminError = await requireAdmin();
@@ -13,24 +26,18 @@ export async function GET(_req: Request, { params }: Params) {
 
   try {
     const { categoryId } = await params;
-    if (!categoryId) {
-      return new NextResponse('Category id is required', { status: 400 });
-    }
+    const id = parseCategoryId(categoryId);
+    if (!id) return apiError('Category id is required', 400);
 
     const category = await prisma.category.findUnique({
-      where: {
-        id: Number(categoryId),
-      },
+      where: { id },
     });
 
-    if (!category) {
-      return new NextResponse('Category not found', { status: 404 });
-    }
+    if (!category) return apiError('Category not found', 404);
 
     return NextResponse.json(category);
   } catch (err) {
-    console.log('[CATEGORY_GET]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('CATEGORY_GET', err);
   }
 }
 
@@ -39,32 +46,25 @@ export async function PATCH(req: Request, { params }: Params) {
   if (adminError) return adminError;
 
   try {
-    const body = await req.json();
-    const { name } = body;
     const { categoryId } = await params;
+    const id = parseCategoryId(categoryId);
+    if (!id) return apiError('Category id is required', 400);
 
-    if (!name) {
-      return new NextResponse('Name is required', { status: 400 });
-    }
-
-    if (!categoryId) {
-      return new NextResponse('Category id is required', { status: 400 });
-    }
+    const raw = await req.json();
+    const parsed = categoryBodySchema.parse(raw);
 
     const category = await prisma.category.update({
-      where: {
-        id: Number(categoryId),
-      },
-      data: {
-        name,
-      },
+      where: { id },
+      data: { name: parsed.name },
     });
     invalidateAdminDataCache();
 
     return NextResponse.json(category);
   } catch (err) {
-    console.log('[CATEGORY_PATCH]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof z.ZodError) {
+      return apiZodError(err);
+    }
+    return apiInternalError('CATEGORY_PATCH', err);
   }
 }
 
@@ -74,21 +74,16 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   try {
     const { categoryId } = await params;
-
-    if (!categoryId) {
-      return new NextResponse('Category id is required', { status: 400 });
-    }
+    const id = parseCategoryId(categoryId);
+    if (!id) return apiError('Category id is required', 400);
 
     const category = await prisma.category.delete({
-      where: {
-        id: Number(categoryId),
-      },
+      where: { id },
     });
     invalidateAdminDataCache();
 
     return NextResponse.json(category);
   } catch (err) {
-    console.log('[CATEGORY_DELETE]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    return apiInternalError('CATEGORY_DELETE', err);
   }
 }

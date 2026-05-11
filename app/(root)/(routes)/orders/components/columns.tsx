@@ -1,9 +1,12 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
+import Link from 'next/link';
 
-import { OrderStatusSelect } from './order-status-select';
+import { Button } from '@/components/ui/button';
+
 import { OrderItemsDialog } from './order-items-dialog';
+import { OrderStatusSelect } from './order-status-select';
 
 export type OrderItemColumn = {
   id: number;
@@ -15,23 +18,36 @@ export type OrderItemColumn = {
   ingredients: string;
 };
 
+export type OrderStatusValue = 'PENDING' | 'SUCCEEDED' | 'CANCELLED';
+
 export type OrderColumn = {
   id: number;
   customer: string;
+  email: string;
+  phone: string;
   contacts: string;
   address: string;
   totalAmount: string;
-  status: 'PENDING' | 'SUCCEEDED' | 'CANCELLED';
+  totalAmountValue: number;
+  status: OrderStatusValue;
   paymentId: string;
   items: OrderItemColumn[];
   createdAt: string;
+  createdAtIso: string;
 };
 
 export const columns: ColumnDef<OrderColumn>[] = [
   {
     accessorKey: 'id',
     header: 'Order',
-    cell: ({ row }) => `#${row.original.id}`,
+    cell: ({ row }) => (
+      <Link
+        href={`/orders/${row.original.id}`}
+        className='font-medium text-primary hover:underline'
+      >
+        #{row.original.id}
+      </Link>
+    ),
   },
   {
     accessorKey: 'customer',
@@ -63,5 +79,14 @@ export const columns: ColumnDef<OrderColumn>[] = [
     id: 'items',
     header: 'Items',
     cell: ({ row }) => <OrderItemsDialog order={row.original} />,
+  },
+  {
+    id: 'open',
+    header: '',
+    cell: ({ row }) => (
+      <Button asChild variant='outline' size='sm'>
+        <Link href={`/orders/${row.original.id}`}>Open</Link>
+      </Button>
+    ),
   },
 ];

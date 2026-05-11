@@ -1,56 +1,29 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
+import { apiInternalError, apiZodError } from '@/lib/api-error';
 import { requireAdmin } from '@/lib/require-admin';
+import { storyBodySchema } from '@/lib/story-admin-service';
 import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
-
-type StoryBody = {
-  previewImageUrl?: string;
-  items?: Array<{
-    sourceUrl?: string;
-  }>;
-};
-
-const normalizeItems = (items?: StoryBody['items']) =>
-  items
-    ?.map((item) => ({ sourceUrl: item.sourceUrl?.trim() ?? '' }))
-    .filter((item) => /^https?:\/\//.test(item.sourceUrl)) ?? [];
-
-const validateBody = (body: StoryBody) => {
-  const items = normalizeItems(body.items);
-
-  if (!body.previewImageUrl) {
-    return { error: 'Preview image is required' };
-  }
-
-  if (!items.length) {
-    return { error: 'At least one story item is required' };
-  }
-
-  return { items };
-};
 
 export async function POST(req: Request) {
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
   try {
-    const body = (await req.json()) as StoryBody;
-    const validation = validateBody(body);
-
-    if ('error' in validation) {
-      return new NextResponse(validation.error, { status: 400 });
-    }
+    const raw = await req.json();
+    const parsed = storyBodySchema.parse(raw);
 
     const story = await prisma.story.create({
       data: {
-        previewImageUrl: body.previewImageUrl as string,
+        previewImageUrl: parsed.previewImageUrl,
       },
     });
 
-    for (const item of validation.items) {
+    for (const item of parsed.items) {
       await prisma.storyItem.create({
         data: {
           storyId: story.id,
@@ -67,7 +40,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(storyWithItems);
   } catch (err) {
-    console.log('[STORIES_POST]', err);
-    return new NextResponse('Internal error', { status: 500 });
+    if (err instanceof z.ZodError) {
+      return apiZodError(err);
+    }
+    return apiInternalError('STORIES_POST', err);
   }
 }
