@@ -4,6 +4,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import Image from 'next/image';
 
 import { CellAction } from './cell-action';
+import { ProductActiveToggle } from './product-active-toggle';
+import { RowReorderControls } from './row-reorder-controls';
 
 export type ProductColumn = {
   id: number;
@@ -14,6 +16,8 @@ export type ProductColumn = {
   variantsCount: number;
   ingredientsCount: number;
   isPizza: boolean;
+  active: boolean;
+  sortOrder: number;
   createdAt: string;
 };
 
@@ -59,8 +63,26 @@ export const columns: ColumnDef<ProductColumn>[] = [
     cell: ({ row }) => (row.original.isPizza ? 'Pizza' : 'Product'),
   },
   {
-    accessorKey: 'createdAt',
-    header: 'Date',
+    accessorKey: 'active',
+    header: 'Active',
+    cell: ({ row }) => (
+      <ProductActiveToggle
+        productId={row.original.id}
+        active={row.original.active}
+      />
+    ),
+  },
+  {
+    accessorKey: 'sortOrder',
+    header: 'Order',
+    cell: ({ row }) => (
+      <div className='flex items-center gap-2'>
+        <span className='text-sm text-muted-foreground tabular-nums w-6 text-right'>
+          {row.original.sortOrder}
+        </span>
+        <RowReorderControls id={row.original.id} endpoint='/api/products' />
+      </div>
+    ),
   },
   {
     id: 'actions',

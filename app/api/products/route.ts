@@ -28,7 +28,7 @@ export async function GET() {
           orderBy: { price: 'asc' },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
 
     return NextResponse.json(products);
@@ -51,6 +51,8 @@ export async function POST(req: Request) {
         name: parsed.name,
         imageUrl: parsed.imageUrl,
         categoryId: parsed.categoryId,
+        active: parsed.active,
+        sortOrder: parsed.sortOrder,
       },
     });
 

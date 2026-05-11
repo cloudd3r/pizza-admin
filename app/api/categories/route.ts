@@ -10,6 +10,12 @@ export const dynamic = 'force-dynamic';
 
 const categoryBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
+  sortOrder: z.coerce
+    .number()
+    .int('Sort order must be an integer')
+    .min(0, 'Sort order must be 0 or higher')
+    .optional()
+    .default(0),
 });
 
 export async function POST(req: Request) {
@@ -21,7 +27,7 @@ export async function POST(req: Request) {
     const parsed = categoryBodySchema.parse(raw);
 
     const category = await prisma.category.create({
-      data: { name: parsed.name },
+      data: { name: parsed.name, sortOrder: parsed.sortOrder },
     });
     invalidateAdminDataCache();
 
@@ -39,7 +45,9 @@ export async function GET() {
   if (adminError) return adminError;
 
   try {
-    const categories = await prisma.category.findMany();
+    const categories = await prisma.category.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    });
 
     return NextResponse.json(categories);
   } catch (err) {

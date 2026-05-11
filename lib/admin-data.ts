@@ -84,14 +84,13 @@ const parseOrderItems = (items: unknown): OrderItemColumn[] => {
 export const getCategoryRows = () =>
   cachedAdminData<CategoryColumn[]>('categories:rows', async () => {
     const categories = await prisma.category.findMany({
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
 
     return categories.map((item) => ({
       id: item.id,
       name: item.name,
+      sortOrder: item.sortOrder,
       createdAt: formatDate(item.createdAt),
     }));
   });
@@ -106,7 +105,11 @@ export const getProductRecords = () =>
           orderBy: { price: 'asc' },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { category: { sortOrder: 'asc' } },
+        { sortOrder: 'asc' },
+        { id: 'asc' },
+      ],
     }),
   );
 
@@ -119,6 +122,8 @@ const productToRow = (item: Awaited<ReturnType<typeof getProductRecords>>[number
   variantsCount: item.items.length,
   ingredientsCount: item.ingredients.length,
   isPizza: item.items.some((productItem) => productItem.pizzaType),
+  active: item.active,
+  sortOrder: item.sortOrder,
   createdAt: formatDate(item.createdAt),
 });
 

@@ -24,10 +24,18 @@ export const productBodySchema = z.object({
   }),
   ingredientIds: z.array(z.coerce.number().int().positive()).optional().default([]),
   items: z.array(productItemSchema).min(1, 'At least one item is required'),
+  active: z.coerce.boolean().optional().default(true),
+  sortOrder: z.coerce
+    .number()
+    .int('Sort order must be an integer')
+    .min(0, 'Sort order must be 0 or higher')
+    .optional()
+    .default(0),
 });
 
 export type ProductBody = z.infer<typeof productBodySchema>;
 export type NormalizedProductItem = {
+  id?: number;
   price: number;
   size: number | null;
   pizzaType: number | null;
@@ -37,6 +45,7 @@ export const normalizeProductItems = (
   items: ProductBody['items'],
 ): NormalizedProductItem[] =>
   items.map((item) => ({
+    id: item.id,
     price: Math.round(item.price),
     size: item.size ? Number(item.size) : null,
     pizzaType: item.pizzaType ? Number(item.pizzaType) : null,
@@ -88,6 +97,81 @@ export const replaceProductIngredients = async (
   }
 };
 
+export class ProductVariantInUseError extends Error {
+  variantId: number;
+  cartItemsCount: number;
+
+  constructor(variantId: number, cartItemsCount: number) {
+    super(
+      `Variant #${variantId} is used by ${cartItemsCount} cart item(s) and cannot be removed`,
+    );
+    this.name = 'ProductVariantInUseError';
+    this.variantId = variantId;
+    this.cartItemsCount = cartItemsCount;
+  }
+}
+
+export const reconcileProductVariants = async (
+  productId: number,
+  items: NormalizedProductItem[],
+) => {
+  const existing = await prisma.productItem.findMany({
+    where: { productId },
+    select: { id: true },
+  });
+
+  const inputIds = new Set(
+    items.map((item) => item.id).filter((id): id is number => Number.isInteger(id)),
+  );
+  const toDelete = existing.filter((row) => !inputIds.has(row.id));
+
+  if (toDelete.length > 0) {
+    const usage = await prisma.cartItem.groupBy({
+      by: ['productItemId'],
+      where: { productItemId: { in: toDelete.map((row) => row.id) } },
+      _count: { productItemId: true },
+    });
+
+    const blocking = usage.find((row) => row._count.productItemId > 0);
+    if (blocking) {
+      throw new ProductVariantInUseError(
+        blocking.productItemId,
+        blocking._count.productItemId,
+      );
+    }
+
+    await prisma.productItem.deleteMany({
+      where: { id: { in: toDelete.map((row) => row.id) } },
+    });
+  }
+
+  for (const item of items) {
+    if (item.id && Number.isInteger(item.id)) {
+      await prisma.productItem.update({
+        where: { id: item.id },
+        data: {
+          price: item.price,
+          size: item.size,
+          pizzaType: item.pizzaType,
+        },
+      });
+    } else {
+      await prisma.productItem.create({
+        data: {
+          productId,
+          price: item.price,
+          size: item.size,
+          pizzaType: item.pizzaType,
+        },
+      });
+    }
+  }
+};
+
+/**
+ * @deprecated Use reconcileProductVariants instead.
+ * Kept temporarily for migration; will be removed once nothing imports it.
+ */
 export const replaceProductVariants = async (
   productId: number,
   items: NormalizedProductItem[],
