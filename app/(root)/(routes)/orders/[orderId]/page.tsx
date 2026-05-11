@@ -16,9 +16,12 @@ import {
 } from '@/components/ui/table';
 import { prisma } from '@/prisma/prisma-client';
 
-import { OrderStatusSelect } from '../components/order-status-select';
-
 import { OrderItemColumn } from '../components/columns';
+import { OrderAdminNote } from '../components/order-admin-note';
+import { OrderFulfillmentSelect } from '../components/order-fulfillment-select';
+import { OrderStatusSelect } from '../components/order-status-select';
+import { OrderTimeline } from '../components/order-timeline';
+import { OrderTimelineAdd } from '../components/order-timeline-add';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +98,11 @@ const OrderDetailPage = async ({ params }: Params) => {
 
   const order = await prisma.order.findUnique({
     where: { id: numericId },
+    include: {
+      events: {
+        orderBy: { createdAt: 'asc' },
+      },
+    },
   });
 
   if (!order) {
@@ -140,7 +148,7 @@ const OrderDetailPage = async ({ params }: Params) => {
               </div>
             ) : null}
           </div>
-          <div className='space-y-2 rounded-md border p-4'>
+          <div className='space-y-3 rounded-md border p-4'>
             <div className='flex items-center justify-between'>
               <div className='text-sm font-medium text-muted-foreground'>
                 Payment status
@@ -148,6 +156,15 @@ const OrderDetailPage = async ({ params }: Params) => {
               <OrderStatusSelect
                 orderId={order.id}
                 initialStatus={order.status}
+              />
+            </div>
+            <div className='flex items-center justify-between'>
+              <div className='text-sm font-medium text-muted-foreground'>
+                Fulfillment status
+              </div>
+              <OrderFulfillmentSelect
+                orderId={order.id}
+                initialStatus={order.fulfillmentStatus}
               />
             </div>
             <div className='text-sm'>
@@ -163,6 +180,10 @@ const OrderDetailPage = async ({ params }: Params) => {
               {format(order.updatedAt, 'MMMM do, yyyy HH:mm')}
             </div>
           </div>
+        </div>
+
+        <div className='rounded-md border p-4'>
+          <OrderAdminNote orderId={order.id} initialNote={order.adminNote} />
         </div>
 
         <div className='rounded-md border'>
@@ -196,6 +217,14 @@ const OrderDetailPage = async ({ params }: Params) => {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        <div className='space-y-3'>
+          <div className='text-base font-semibold'>Timeline</div>
+          <OrderTimeline events={order.events} />
+          <div className='rounded-md border p-4'>
+            <OrderTimelineAdd orderId={order.id} />
+          </div>
         </div>
       </div>
     </div>

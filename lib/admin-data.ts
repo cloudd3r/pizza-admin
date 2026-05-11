@@ -176,6 +176,7 @@ export const getOrderRows = async () => {
     totalAmount: formatCurrency(order.totalAmount),
     totalAmountValue: order.totalAmount,
     status: order.status,
+    fulfillmentStatus: order.fulfillmentStatus,
     paymentId: order.paymentId ?? '—',
     items: parseOrderItems(order.items),
     createdAt: formatDate(order.createdAt),
@@ -218,6 +219,21 @@ export const getOverviewCards = async () => {
     .filter((order) => order.status === 'SUCCEEDED')
     .reduce((sum, order) => sum + order.totalAmount, 0);
 
+  const inProgressCount = orders.filter((order) =>
+    ['CONFIRMED', 'COOKING', 'READY'].includes(order.fulfillmentStatus),
+  ).length;
+  const deliveringCount = orders.filter(
+    (order) => order.fulfillmentStatus === 'DELIVERING',
+  ).length;
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const deliveredTodayCount = orders.filter(
+    (order) =>
+      order.fulfillmentStatus === 'DELIVERED' &&
+      order.updatedAt.getTime() >= startOfDay.getTime(),
+  ).length;
+
   return [
     {
       label: 'Revenue',
@@ -227,7 +243,17 @@ export const getOverviewCards = async () => {
     {
       label: 'Orders',
       value: String(orders.length),
-      description: `${pendingOrdersCount} pending`,
+      description: `${pendingOrdersCount} pending payment`,
+    },
+    {
+      label: 'In progress',
+      value: String(inProgressCount),
+      description: 'Confirmed / Cooking / Ready',
+    },
+    {
+      label: 'Delivering',
+      value: String(deliveringCount),
+      description: `${deliveredTodayCount} delivered today`,
     },
     {
       label: 'Products',
