@@ -42,6 +42,11 @@ export const MainNav: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
       active: pathname === `/orders`,
     },
     {
+      href: `/promos`,
+      label: 'Промокоды',
+      active: pathname.startsWith(`/promos`),
+    },
+    {
       href: `/stories`,
       label: 'Сторис',
       active: pathname === `/stories`,

@@ -7,6 +7,10 @@ import type { CategoryColumn } from '@/app/(root)/(routes)/categories/components
 import type { IngredientColumn } from '@/app/(root)/(routes)/ingredients/components/columns';
 import type { OrderColumn, OrderItemColumn } from '@/app/(root)/(routes)/orders/components/columns';
 import type { ProductColumn } from '@/app/(root)/(routes)/products/components/columns';
+import type {
+  PromoColumn,
+  PromoKindValue,
+} from '@/app/(root)/(routes)/promos/components/columns';
 import type { StoryColumn } from '@/app/(root)/(routes)/stories/components/columns';
 
 type StoredOrderItem = {
@@ -190,6 +194,54 @@ export const getOrderRows = async () => {
     createdAtIso: order.createdAt.toISOString(),
   }));
 };
+
+const formatValidity = (
+  validFrom: Date | null,
+  validUntil: Date | null,
+) => {
+  if (!validFrom && !validUntil) return 'Без ограничения';
+  const from = validFrom ? format(validFrom, 'dd.MM.yyyy') : '—';
+  const until = validUntil ? format(validUntil, 'dd.MM.yyyy') : '—';
+  return `${from} → ${until}`;
+};
+
+const formatLimits = (
+  usageLimit: number | null,
+  perUserLimit: number | null,
+) => {
+  const parts: string[] = [];
+  if (usageLimit !== null) parts.push(`Всего: ${usageLimit}`);
+  if (perUserLimit !== null) parts.push(`На юзера: ${perUserLimit}`);
+  return parts.length === 0 ? 'Без лимита' : parts.join(' · ');
+};
+
+const formatPromoValue = (kind: PromoKindValue, valueOff: number) => {
+  if (kind === 'PERCENT') return `${valueOff}%`;
+  if (kind === 'FIXED') return `${valueOff} ₽`;
+  return '—';
+};
+
+export const getPromoRows = () =>
+  cachedAdminData<PromoColumn[]>('promos:rows', async () => {
+    const promos = await prisma.promo.findMany({
+      orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        _count: { select: { redemptions: true } },
+      },
+    });
+
+    return promos.map((promo) => ({
+      id: promo.id,
+      code: promo.code,
+      kind: promo.kind,
+      value: formatPromoValue(promo.kind, promo.valueOff),
+      active: promo.active,
+      validity: formatValidity(promo.validFrom, promo.validUntil),
+      limits: formatLimits(promo.usageLimit, promo.perUserLimit),
+      redemptionsCount: promo._count.redemptions,
+      createdAt: formatDate(promo.createdAt),
+    }));
+  });
 
 export const getStoryRows = () =>
   cachedAdminData<StoryColumn[]>('stories:rows', async () => {
