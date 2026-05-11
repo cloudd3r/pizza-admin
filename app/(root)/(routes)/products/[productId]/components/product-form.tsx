@@ -59,6 +59,12 @@ const formSchema = z.object({
   categoryId: z.string().min(1, 'Выберите категорию'),
   ingredientIds: z.array(z.number()),
   items: z.array(productItemSchema).min(1, 'Добавьте хотя бы один вариант'),
+  active: z.boolean().default(true),
+  sortOrder: z.coerce
+    .number({ invalid_type_error: 'Sort order — число' })
+    .int('Sort order — целое число')
+    .min(0, 'Sort order ≥ 0')
+    .default(0),
 });
 
 type ProductFormValues = z.infer<typeof formSchema>;
@@ -95,6 +101,8 @@ const getDefaultValues = (
         pizzaType: item.pizzaType,
       }))
     : [emptyItem],
+  active: initialData?.active ?? true,
+  sortOrder: initialData?.sortOrder ?? 0,
 });
 
 export const ProductForm: React.FC<ProductFormProps> = ({
@@ -259,6 +267,67 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid grid-cols-2 gap-8'>
+            <FormField
+              control={form.control}
+              name='active'
+              render={({ field }) => (
+                <FormItem className='space-y-2'>
+                  <FormLabel>Visibility</FormLabel>
+                  <div className='flex items-center gap-2'>
+                    <Button
+                      type='button'
+                      variant={field.value ? 'default' : 'outline'}
+                      disabled={loading}
+                      onClick={() => field.onChange(true)}
+                    >
+                      Active
+                    </Button>
+                    <Button
+                      type='button'
+                      variant={field.value ? 'outline' : 'default'}
+                      disabled={loading}
+                      onClick={() => field.onChange(false)}
+                    >
+                      Hidden
+                    </Button>
+                  </div>
+                  <p className='text-sm text-muted-foreground'>
+                    Hidden products do not appear on the storefront but stay in past orders.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='sortOrder'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sort order</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={1}
+                      disabled={loading}
+                      placeholder='0'
+                      {...field}
+                      value={field.value ?? 0}
+                      onChange={(event) =>
+                        field.onChange(Number(event.target.value) || 0)
+                      }
+                    />
+                  </FormControl>
+                  <p className='text-sm text-muted-foreground'>
+                    Lower numbers come first within the same category.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

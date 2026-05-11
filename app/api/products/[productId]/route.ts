@@ -7,8 +7,9 @@ import {
   dedupeIngredientIds,
   normalizeProductItems,
   productBodySchema,
+  ProductVariantInUseError,
+  reconcileProductVariants,
   replaceProductIngredients,
-  replaceProductVariants,
 } from '@/lib/product-admin-service';
 import { requireAdmin } from '@/lib/require-admin';
 import { prisma } from '@/prisma/prisma-client';
@@ -78,10 +79,12 @@ export async function PATCH(req: Request, { params }: Params) {
         name: parsed.name,
         imageUrl: parsed.imageUrl,
         categoryId: parsed.categoryId,
+        active: parsed.active,
+        sortOrder: parsed.sortOrder,
       },
     });
 
-    await replaceProductVariants(id, items);
+    await reconcileProductVariants(id, items);
     await replaceProductIngredients(id, dedupeIngredientIds(parsed.ingredientIds));
 
     const product = await prisma.product.findUnique({
@@ -97,6 +100,9 @@ export async function PATCH(req: Request, { params }: Params) {
   } catch (err) {
     if (err instanceof ZodError) {
       return apiZodError(err);
+    }
+    if (err instanceof ProductVariantInUseError) {
+      return apiError(err.message, 409);
     }
     if (err instanceof Error && err.message.startsWith('Category id')) {
       return apiError(err.message, 400);

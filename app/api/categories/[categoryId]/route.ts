@@ -12,6 +12,12 @@ type Params = { params: Promise<{ categoryId: string }> };
 
 const categoryBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
+  sortOrder: z.coerce
+    .number()
+    .int('Sort order must be an integer')
+    .min(0, 'Sort order must be 0 or higher')
+    .optional()
+    .default(0),
 });
 
 const parseCategoryId = (raw: string | undefined) => {
@@ -55,7 +61,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const category = await prisma.category.update({
       where: { id },
-      data: { name: parsed.name },
+      data: { name: parsed.name, sortOrder: parsed.sortOrder },
     });
     invalidateAdminDataCache();
 
