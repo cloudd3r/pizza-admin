@@ -34,11 +34,15 @@ model User {
 model Category {
     id Int @id @default(autoincrement())
 
-    name     String
+    name      String
+    sortOrder Int    @default(0)
+
     products Product[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+
+    @@index([sortOrder, id])
 }
 
 model Product {
@@ -46,6 +50,22 @@ model Product {
 
     name     String
     imageUrl String
+
+    active    Boolean @default(true)
+    sortOrder Int     @default(0)
+
+    description String?
+    composition String?
+
+    calories Int?
+    proteins Float?
+    fats     Float?
+    carbs    Float?
+
+    allergens String[] @default([])
+    badges    String[] @default([])
+
+    stopUntil DateTime?
 
     category   Category @relation(fields: [categoryId], references: [id])
     categoryId Int
@@ -56,6 +76,10 @@ model Product {
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+
+    @@index([categoryId, sortOrder, id])
+    @@index([active])
+    @@index([stopUntil])
 }
 
 model ProductItem {

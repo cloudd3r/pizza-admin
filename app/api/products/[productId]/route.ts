@@ -4,24 +4,18 @@ import { ZodError } from 'zod';
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
 import {
-  dedupeIngredientIds,
-  normalizeProductItems,
+  ProductVariantInUseError,
+  deleteProduct,
+  getProductWithRelations,
+  parseProductId,
   productBodySchema,
-  replaceProductIngredients,
-  replaceProductVariants,
+  updateProductWithRelations,
 } from '@/lib/product-admin-service';
 import { requireAdmin } from '@/lib/require-admin';
-import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ productId: string }> };
-
-const parseProductId = (raw: string | undefined) => {
-  if (!raw) return null;
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-};
 
 export async function GET(_req: Request, { params }: Params) {
   const adminError = await requireAdmin();
@@ -30,25 +24,10 @@ export async function GET(_req: Request, { params }: Params) {
   try {
     const { productId } = await params;
     const id = parseProductId(productId);
+    if (!id) return apiError('Product id is required', 400);
 
-    if (!id) {
-      return apiError('Product id is required', 400);
-    }
-
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        category: true,
-        ingredients: true,
-        items: {
-          orderBy: [{ pizzaType: 'asc' }, { size: 'asc' }, { price: 'asc' }],
-        },
-      },
-    });
-
-    if (!product) {
-      return apiError('Product not found', 404);
-    }
+    const product = await getProductWithRelations(id);
+    if (!product) return apiError('Product not found', 404);
 
     return NextResponse.json(product);
   } catch (err) {
@@ -63,40 +42,16 @@ export async function PATCH(req: Request, { params }: Params) {
   try {
     const { productId } = await params;
     const id = parseProductId(productId);
+    if (!id) return apiError('Product id is required', 400);
 
-    if (!id) {
-      return apiError('Product id is required', 400);
-    }
-
-    const raw = await req.json();
-    const parsed = productBodySchema.parse(raw);
-    const items = normalizeProductItems(parsed.items);
-
-    await prisma.product.update({
-      where: { id },
-      data: {
-        name: parsed.name,
-        imageUrl: parsed.imageUrl,
-        categoryId: parsed.categoryId,
-      },
-    });
-
-    await replaceProductVariants(id, items);
-    await replaceProductIngredients(id, dedupeIngredientIds(parsed.ingredientIds));
-
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        items: true,
-        ingredients: true,
-      },
-    });
+    const parsed = productBodySchema.parse(await req.json());
+    const product = await updateProductWithRelations(id, parsed);
     invalidateAdminDataCache();
-
     return NextResponse.json(product);
   } catch (err) {
-    if (err instanceof ZodError) {
-      return apiZodError(err);
+    if (err instanceof ZodError) return apiZodError(err);
+    if (err instanceof ProductVariantInUseError) {
+      return apiError(err.message, 409);
     }
     if (err instanceof Error && err.message.startsWith('Category id')) {
       return apiError(err.message, 400);
@@ -112,16 +67,10 @@ export async function DELETE(_req: Request, { params }: Params) {
   try {
     const { productId } = await params;
     const id = parseProductId(productId);
+    if (!id) return apiError('Product id is required', 400);
 
-    if (!id) {
-      return apiError('Product id is required', 400);
-    }
-
-    await prisma.product.delete({
-      where: { id },
-    });
+    await deleteProduct(id);
     invalidateAdminDataCache();
-
     return NextResponse.json({ ok: true });
   } catch (err) {
     return apiInternalError('PRODUCT_DELETE', err);
