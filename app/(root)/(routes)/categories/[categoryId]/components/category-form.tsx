@@ -29,6 +29,11 @@ interface SettingsFromProps {
 
 const formSchema = z.object({
   name: z.string().min(1),
+  sortOrder: z.coerce
+    .number({ invalid_type_error: 'Sort order — число' })
+    .int('Sort order — целое число')
+    .min(0, 'Sort order ≥ 0')
+    .default(0),
 });
 
 type CategoryFormValues = z.infer<typeof formSchema>;
@@ -47,9 +52,9 @@ export const CategoryForm: React.FC<SettingsFromProps> = ({ initialData }) => {
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
-      name: '',
-    },
+    defaultValues: initialData
+      ? { name: initialData.name, sortOrder: initialData.sortOrder ?? 0 }
+      : { name: '', sortOrder: 0 },
   });
 
   const onSubmit = async (data: CategoryFormValues) => {
@@ -126,6 +131,30 @@ export const CategoryForm: React.FC<SettingsFromProps> = ({ initialData }) => {
                       disabled={loading}
                       placeholder='Category name'
                       {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='sortOrder'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sort order</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={1}
+                      disabled={loading}
+                      placeholder='0'
+                      {...field}
+                      value={field.value ?? 0}
+                      onChange={(event) =>
+                        field.onChange(Number(event.target.value) || 0)
+                      }
                     />
                   </FormControl>
                   <FormMessage />
