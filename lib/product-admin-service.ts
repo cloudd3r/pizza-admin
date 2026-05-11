@@ -248,14 +248,82 @@ export const reconcileProductVariants = async (
   }
 };
 
-/**
- * @deprecated Use reconcileProductVariants instead.
- * Kept temporarily for migration; will be removed once nothing imports it.
- */
-export const replaceProductVariants = async (
-  productId: number,
-  items: NormalizedProductItem[],
-) => {
-  await prisma.productItem.deleteMany({ where: { productId } });
-  await createProductItems(productId, items);
+export const parseProductId = (raw: string | undefined) => {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
 };
+
+const productScalarData = (body: ProductBody) => ({
+  name: body.name,
+  imageUrl: body.imageUrl,
+  categoryId: body.categoryId,
+  active: body.active,
+  sortOrder: body.sortOrder,
+  description: body.description,
+  composition: body.composition,
+  calories: body.calories,
+  proteins: body.proteins,
+  fats: body.fats,
+  carbs: body.carbs,
+  allergens: body.allergens,
+  badges: body.badges,
+  stopUntil: body.stopUntil,
+});
+
+export const listProductsWithRelations = () =>
+  prisma.product.findMany({
+    include: {
+      category: true,
+      ingredients: true,
+      items: { orderBy: { price: 'asc' } },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  });
+
+export const getProductWithRelations = (id: number) =>
+  prisma.product.findUnique({
+    where: { id },
+    include: {
+      category: true,
+      ingredients: true,
+      items: {
+        orderBy: [{ pizzaType: 'asc' }, { size: 'asc' }, { price: 'asc' }],
+      },
+    },
+  });
+
+export const createProductWithRelations = async (body: ProductBody) => {
+  const product = await prisma.product.create({
+    data: productScalarData(body),
+  });
+
+  await createProductItems(product.id, normalizeProductItems(body.items));
+  await replaceProductIngredients(
+    product.id,
+    dedupeIngredientIds(body.ingredientIds),
+  );
+
+  return prisma.product.findUnique({
+    where: { id: product.id },
+    include: { items: true, ingredients: true },
+  });
+};
+
+export const updateProductWithRelations = async (id: number, body: ProductBody) => {
+  await prisma.product.update({
+    where: { id },
+    data: productScalarData(body),
+  });
+
+  await reconcileProductVariants(id, normalizeProductItems(body.items));
+  await replaceProductIngredients(id, dedupeIngredientIds(body.ingredientIds));
+
+  return prisma.product.findUnique({
+    where: { id },
+    include: { items: true, ingredients: true },
+  });
+};
+
+export const deleteProduct = (id: number) =>
+  prisma.product.delete({ where: { id } });

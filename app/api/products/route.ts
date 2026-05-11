@@ -4,14 +4,11 @@ import { ZodError } from 'zod';
 import { invalidateAdminDataCache } from '@/lib/admin-data-cache';
 import { apiError, apiInternalError, apiZodError } from '@/lib/api-error';
 import {
-  createProductItems,
-  dedupeIngredientIds,
-  normalizeProductItems,
+  createProductWithRelations,
+  listProductsWithRelations,
   productBodySchema,
-  replaceProductIngredients,
 } from '@/lib/product-admin-service';
 import { requireAdmin } from '@/lib/require-admin';
-import { prisma } from '@/prisma/prisma-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,18 +17,7 @@ export async function GET() {
   if (adminError) return adminError;
 
   try {
-    const products = await prisma.product.findMany({
-      include: {
-        category: true,
-        ingredients: true,
-        items: {
-          orderBy: { price: 'asc' },
-        },
-      },
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    });
-
-    return NextResponse.json(products);
+    return NextResponse.json(await listProductsWithRelations());
   } catch (err) {
     return apiInternalError('PRODUCTS_GET', err);
   }
@@ -42,49 +28,12 @@ export async function POST(req: Request) {
   if (adminError) return adminError;
 
   try {
-    const raw = await req.json();
-    const parsed = productBodySchema.parse(raw);
-    const items = normalizeProductItems(parsed.items);
-
-    const product = await prisma.product.create({
-      data: {
-        name: parsed.name,
-        imageUrl: parsed.imageUrl,
-        categoryId: parsed.categoryId,
-        active: parsed.active,
-        sortOrder: parsed.sortOrder,
-        description: parsed.description,
-        composition: parsed.composition,
-        calories: parsed.calories,
-        proteins: parsed.proteins,
-        fats: parsed.fats,
-        carbs: parsed.carbs,
-        allergens: parsed.allergens,
-        badges: parsed.badges,
-        stopUntil: parsed.stopUntil,
-      },
-    });
-
-    await createProductItems(product.id, items);
-    await replaceProductIngredients(
-      product.id,
-      dedupeIngredientIds(parsed.ingredientIds),
-    );
-
-    const productWithRelations = await prisma.product.findUnique({
-      where: { id: product.id },
-      include: {
-        items: true,
-        ingredients: true,
-      },
-    });
+    const parsed = productBodySchema.parse(await req.json());
+    const product = await createProductWithRelations(parsed);
     invalidateAdminDataCache();
-
-    return NextResponse.json(productWithRelations);
+    return NextResponse.json(product);
   } catch (err) {
-    if (err instanceof ZodError) {
-      return apiZodError(err);
-    }
+    if (err instanceof ZodError) return apiZodError(err);
     if (err instanceof Error && err.message.startsWith('Category id')) {
       return apiError(err.message, 400);
     }
