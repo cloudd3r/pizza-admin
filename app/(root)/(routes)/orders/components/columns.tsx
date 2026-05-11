@@ -5,8 +5,10 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 
+import { OrderFulfillmentSelect } from './order-fulfillment-select';
 import { OrderItemsDialog } from './order-items-dialog';
 import { OrderStatusSelect } from './order-status-select';
+import type { OrderFulfillmentStatus } from './order-fulfillment-options';
 
 export type OrderItemColumn = {
   id: number;
@@ -30,6 +32,7 @@ export type OrderColumn = {
   totalAmount: string;
   totalAmountValue: number;
   status: OrderStatusValue;
+  fulfillmentStatus: OrderFulfillmentStatus;
   paymentId: string;
   items: OrderItemColumn[];
   createdAt: string;
@@ -63,11 +66,21 @@ export const columns: ColumnDef<OrderColumn>[] = [
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: 'Payment',
     cell: ({ row }) => (
       <OrderStatusSelect
         orderId={row.original.id}
         initialStatus={row.original.status}
+      />
+    ),
+  },
+  {
+    accessorKey: 'fulfillmentStatus',
+    header: 'Fulfillment',
+    cell: ({ row }) => (
+      <OrderFulfillmentSelect
+        orderId={row.original.id}
+        initialStatus={row.original.fulfillmentStatus}
       />
     ),
   },

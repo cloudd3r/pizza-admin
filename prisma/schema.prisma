@@ -17,6 +17,9 @@ model User {
     role     UserRole  @default(USER)
     verified DateTime?
 
+    phone         String?   @unique
+    phoneVerified DateTime?
+
     provider   String?
     providerId String?
 
@@ -129,6 +132,9 @@ model Order {
     status      OrderStatus
     paymentId   String?
 
+    fulfillmentStatus OrderFulfillmentStatus @default(NEW)
+    adminNote         String?
+
     items Json
 
     fullName String
@@ -137,8 +143,39 @@ model Order {
     address  String
     comment  String?
 
+    events OrderEvent[]
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+}
+
+model OrderEvent {
+    id Int @id @default(autoincrement())
+
+    order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    orderId Int
+
+    kind       OrderEventKind
+    payload    Json?
+    actorEmail String?
+
+    createdAt DateTime @default(now())
+
+    @@index([orderId, createdAt])
+}
+
+model OtpCode {
+    id Int @id @default(autoincrement())
+
+    phone     String
+    codeHash  String
+    expiresAt DateTime
+    attempts  Int      @default(0)
+    consumed  Boolean  @default(false)
+
+    createdAt DateTime @default(now())
+
+    @@index([phone, createdAt])
 }
 
 model VerificationCode {
@@ -176,6 +213,24 @@ enum OrderStatus {
     PENDING
     SUCCEEDED
     CANCELLED
+}
+
+enum OrderFulfillmentStatus {
+    NEW
+    CONFIRMED
+    COOKING
+    READY
+    DELIVERING
+    DELIVERED
+    CANCELLED
+    REFUNDED
+}
+
+enum OrderEventKind {
+    PAYMENT_STATUS_CHANGED
+    FULFILLMENT_STATUS_CHANGED
+    NOTE
+    OTHER
 }
 
 enum UserRole {
