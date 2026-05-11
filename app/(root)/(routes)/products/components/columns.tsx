@@ -5,6 +5,7 @@ import Image from 'next/image';
 
 import { CellAction } from './cell-action';
 import { ProductActiveToggle } from './product-active-toggle';
+import { ProductStopToggle } from './product-stop-toggle';
 import { RowReorderControls } from './row-reorder-controls';
 
 export type ProductColumn = {
@@ -18,6 +19,8 @@ export type ProductColumn = {
   isPizza: boolean;
   active: boolean;
   sortOrder: number;
+  stopUntil: string | null;
+  badges: string[];
   createdAt: string;
 };
 
@@ -83,6 +86,40 @@ export const columns: ColumnDef<ProductColumn>[] = [
         <RowReorderControls id={row.original.id} endpoint='/api/products' />
       </div>
     ),
+  },
+  {
+    id: 'stop',
+    header: 'Stop',
+    cell: ({ row }) => (
+      <ProductStopToggle
+        productId={row.original.id}
+        stopUntilIso={row.original.stopUntil}
+      />
+    ),
+  },
+  {
+    id: 'badges',
+    header: 'Badges',
+    cell: ({ row }) =>
+      row.original.badges.length === 0 ? (
+        <span className='text-xs text-muted-foreground'>—</span>
+      ) : (
+        <div className='flex flex-wrap gap-1'>
+          {row.original.badges.slice(0, 3).map((badge) => (
+            <span
+              key={badge}
+              className='inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700'
+            >
+              {badge}
+            </span>
+          ))}
+          {row.original.badges.length > 3 ? (
+            <span className='text-[11px] text-muted-foreground'>
+              +{row.original.badges.length - 3}
+            </span>
+          ) : null}
+        </div>
+      ),
   },
   {
     id: 'actions',

@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 type ProductWithRelations = Product & {
   items: ProductItem[];
@@ -53,6 +54,14 @@ const productItemSchema = z.object({
   pizzaType: z.coerce.number().int().nullable().optional(),
 });
 
+const nullableNumber = z
+  .union([z.coerce.number(), z.literal('')])
+  .nullable()
+  .optional()
+  .transform((value) =>
+    value === '' || value === null || value === undefined ? null : Number(value),
+  );
+
 const formSchema = z.object({
   name: z.string().min(1, 'Введите название'),
   imageUrl: z.string().url('Загрузите изображение'),
@@ -65,9 +74,19 @@ const formSchema = z.object({
     .int('Sort order — целое число')
     .min(0, 'Sort order ≥ 0')
     .default(0),
+  description: z.string().max(2000, 'Слишком длинное описание').optional().default(''),
+  composition: z.string().max(2000, 'Слишком длинный состав').optional().default(''),
+  calories: nullableNumber,
+  proteins: nullableNumber,
+  fats: nullableNumber,
+  carbs: nullableNumber,
+  allergens: z.string().max(500).optional().default(''),
+  badges: z.string().max(500).optional().default(''),
+  stopUntil: z.string().optional().default(''),
 });
 
-type ProductFormValues = z.infer<typeof formSchema>;
+type ProductFormInput = z.input<typeof formSchema>;
+type ProductFormValues = z.output<typeof formSchema>;
 
 const pizzaSizes = [
   { value: 20, label: '20 см' },
@@ -86,9 +105,21 @@ const emptyItem = {
   pizzaType: null,
 };
 
+const toDateTimeLocal = (value: Date | string | null | undefined) => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+
+const numOrEmpty = (value: number | null | undefined) =>
+  value === null || value === undefined ? '' : (value as unknown as number);
+
 const getDefaultValues = (
   initialData: ProductWithRelations | null,
-): ProductFormValues => ({
+): z.input<typeof formSchema> => ({
   name: initialData?.name ?? '',
   imageUrl: initialData?.imageUrl ?? '',
   categoryId: initialData?.categoryId ? String(initialData.categoryId) : '',
@@ -103,6 +134,15 @@ const getDefaultValues = (
     : [emptyItem],
   active: initialData?.active ?? true,
   sortOrder: initialData?.sortOrder ?? 0,
+  description: initialData?.description ?? '',
+  composition: initialData?.composition ?? '',
+  calories: numOrEmpty(initialData?.calories),
+  proteins: numOrEmpty(initialData?.proteins),
+  fats: numOrEmpty(initialData?.fats),
+  carbs: numOrEmpty(initialData?.carbs),
+  allergens: initialData?.allergens?.join(', ') ?? '',
+  badges: initialData?.badges?.join(', ') ?? '',
+  stopUntil: toDateTimeLocal(initialData?.stopUntil ?? null),
 });
 
 export const ProductForm: React.FC<ProductFormProps> = ({
@@ -123,7 +163,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const toastMessage = initialData ? 'Product updated.' : 'Product created.';
   const action = initialData ? 'Save changes' : 'Create';
 
-  const form = useForm<ProductFormValues>({
+  const form = useForm<ProductFormInput, unknown, ProductFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: getDefaultValues(initialData),
   });
@@ -333,6 +373,208 @@ export const ProductForm: React.FC<ProductFormProps> = ({
               )}
             />
           </div>
+
+          <FormField
+            control={form.control}
+            name='description'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={3}
+                    disabled={loading}
+                    placeholder='Описание товара (видно в карточке на витрине).'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='composition'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Composition</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={3}
+                    disabled={loading}
+                    placeholder='Состав: мука, томатный соус, моцарелла…'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+            <FormField
+              control={form.control}
+              name='calories'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Calories (kcal)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={1}
+                      disabled={loading}
+                      placeholder='—'
+                      {...field}
+                      value={(field.value as number | '' | null) ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='proteins'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Proteins (g)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={0.1}
+                      disabled={loading}
+                      placeholder='—'
+                      {...field}
+                      value={(field.value as number | '' | null) ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='fats'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fats (g)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={0.1}
+                      disabled={loading}
+                      placeholder='—'
+                      {...field}
+                      value={(field.value as number | '' | null) ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='carbs'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Carbs (g)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={0.1}
+                      disabled={loading}
+                      placeholder='—'
+                      {...field}
+                      value={(field.value as number | '' | null) ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <FormField
+              control={form.control}
+              name='allergens'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Allergens</FormLabel>
+                  <FormControl>
+                    <Input
+                      disabled={loading}
+                      placeholder='глютен, лактоза, яйца'
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className='text-xs text-muted-foreground'>
+                    Через запятую. Показываются на карточке товара.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='badges'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Badges</FormLabel>
+                  <FormControl>
+                    <Input
+                      disabled={loading}
+                      placeholder='новинка, хит, острая'
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className='text-xs text-muted-foreground'>
+                    Через запятую. Цветные плашки рядом с названием.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name='stopUntil'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Stop until</FormLabel>
+                <div className='flex items-center gap-3'>
+                  <FormControl>
+                    <Input
+                      type='datetime-local'
+                      disabled={loading}
+                      {...field}
+                    />
+                  </FormControl>
+                  {field.value ? (
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => field.onChange('')}
+                      disabled={loading}
+                    >
+                      Снять
+                    </Button>
+                  ) : null}
+                </div>
+                <p className='text-xs text-muted-foreground'>
+                  Пока время не пройдёт, товар скрыт на витрине и не добавляется
+                  в корзину.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className='space-y-4'>
             <div>

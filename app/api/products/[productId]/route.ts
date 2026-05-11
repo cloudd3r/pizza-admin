@@ -81,6 +81,15 @@ export async function PATCH(req: Request, { params }: Params) {
         categoryId: parsed.categoryId,
         active: parsed.active,
         sortOrder: parsed.sortOrder,
+        description: parsed.description,
+        composition: parsed.composition,
+        calories: parsed.calories,
+        proteins: parsed.proteins,
+        fats: parsed.fats,
+        carbs: parsed.carbs,
+        allergens: parsed.allergens,
+        badges: parsed.badges,
+        stopUntil: parsed.stopUntil,
       },
     });
 
